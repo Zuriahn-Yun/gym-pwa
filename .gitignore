@@ -1,0 +1,7 @@
+node_modules/
+gym.db
+certs/
+*.pem
+.env
+.DS_Store
+package-lock.json
