@@ -81,6 +81,17 @@ export async function removeExerciseFromTemplate(templateId, exerciseId) {
   if (error) throw new Error(error.message);
 }
 
+export async function updateTemplateExercise(templateId, exerciseId, fields) {
+  const { data, error } = await db.from('template_exercises')
+    .update(fields)
+    .eq('template_id', templateId)
+    .eq('exercise_id', exerciseId)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function reorderTemplateExercises(templateId, items) {
   // items: [{ exercise_id, position }]
   await Promise.all(items.map(({ exercise_id, position }) =>
