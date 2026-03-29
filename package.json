@@ -5,11 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "seed": "node seed.js",
     "test": "echo 'No tests yet' && exit 0"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "better-sqlite3": "^12.8.0"
+    "@insforge/sdk": "^1.2.2",
+    "express": "^4.19.2"
   }
 }
