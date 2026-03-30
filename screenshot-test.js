@@ -194,9 +194,9 @@ async function run() {
   if (pageErrors.length === 0) {
     console.log('(none)');
   } else {
-    pageErrors.forEach((entry, i) => {
-      console.log(`  [${i}] ${entry.message}`);
-      if (entry.stack) console.log(`       Stack: ${entry.stack}`);
+    pageErrors.forEach((err, i) => {
+      console.log(`  [${i}] ${err.message}`);
+      if (err.stack) console.log(`       Stack: ${err.stack}`);
     });
   }
 
@@ -218,12 +218,17 @@ async function run() {
     process.exit(1);
   }
 
-  if (consoleErrors.length > 0) {
-    const hasCritical = consoleErrors.some(e => e.text.includes('ReferenceError') || e.text.includes('Error'));
-    if (hasCritical) {
-      console.error(`\nFAIL: ${consoleErrors.length} console errors found.`);
-      process.exit(1);
-    }
+  // Filter out expected errors (e.g., 401 unauthorized during initial auth check)
+  const unexpectedErrors = consoleErrors.filter(e => {
+    const isExpected401 = e.text.includes('api/auth/refresh') && e.text.includes('401');
+    const isReferenceError = e.text.includes('ReferenceError');
+    const isGeneralError = e.text.includes('Error') && !isExpected401;
+    return isReferenceError || isGeneralError;
+  });
+
+  if (unexpectedErrors.length > 0) {
+    console.error(`\nFAIL: ${unexpectedErrors.length} unexpected console errors found.`);
+    process.exit(1);
   }
 
   const criticalFailures = networkFailures.filter(f => f.url.startsWith(BASE_URL));
