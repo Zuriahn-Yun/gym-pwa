@@ -40,7 +40,12 @@ export async function render(container, params) {
           </div>
           
           ${profile?.strava_access_token 
-            ? `<button class="btn btn-secondary btn-full" id="disconnect-strava">Disconnect Strava</button>` 
+            ? `
+              <div style="display:flex; gap:8px; margin-bottom:8px;">
+                <button class="btn btn-primary btn-full" id="sync-strava" style="background:#fc4c02; border:none;">Sync Activities Now</button>
+              </div>
+              <button class="btn btn-secondary btn-full" id="disconnect-strava">Disconnect Strava</button>
+            ` 
             : `<button class="btn btn-primary btn-full" id="connect-strava" style="background:#fc4c02; border:none;">Connect to Strava</button>`}
         </div>
 
@@ -67,6 +72,26 @@ export async function render(container, params) {
         window.__logout();
       }
     };
+
+    // Strava Sync logic
+    const syncBtn = container.querySelector('#sync-strava');
+    if (syncBtn) {
+      syncBtn.onclick = async () => {
+        syncBtn.disabled = true;
+        syncBtn.textContent = 'Syncing...';
+        try {
+          const res = await insforge.functions.invoke('strava-sync');
+          if (res.error) throw new Error(res.error);
+          alert('Sync complete! Check your history for new activities.');
+          syncBtn.textContent = 'Sync Activities Now';
+          syncBtn.disabled = false;
+        } catch (err) {
+          alert('Sync failed: ' + err.message);
+          syncBtn.textContent = 'Sync Activities Now';
+          syncBtn.disabled = false;
+        }
+      };
+    }
 
     // Strava Connect logic
     const connectBtn = container.querySelector('#connect-strava');
