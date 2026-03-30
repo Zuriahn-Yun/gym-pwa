@@ -43,6 +43,7 @@ const customTokenManager = new LocalTokenManager();
 // Create client with default internal manager
 export const insforge = createClient({
   baseUrl: 'https://ifu5d87t.us-west.insforge.app',
+  functionsUrl: 'https://ifu5d87t.functions.insforge.app',
   anonKey: 'ik_1a53b3d9989f708e4ee782d35f97d71a',
   debug: true
 });
