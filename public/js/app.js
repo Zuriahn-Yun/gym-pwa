@@ -52,6 +52,7 @@ async function navigate() {
         return { data: { user: null }, error: null };
       });
       currentUser = data?.user ?? null;
+      if (error) authError = error;
     }
 
     if (!currentUser) {
@@ -59,7 +60,7 @@ async function navigate() {
       // If still no user, show login.
       navEl.style.display = 'none';
       await renderLogin(appEl, { 
-        error: authError || error,
+        error: authError,
         hasCode: location.search.includes('insforge_code')
       });
       return;
