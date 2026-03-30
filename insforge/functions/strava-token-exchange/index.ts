@@ -36,11 +36,15 @@ export default async function handler(req: Request) {
     const stravaData = await stravaRes.json()
 
     if (stravaData.errors || !stravaData.access_token) {
+      console.error('Strava token exchange error:', stravaData)
       throw new Error('Failed to exchange Strava token: ' + (stravaData.message || 'Unknown error'))
     }
 
     // 2. Update user profile in InsForge using SERVICE_ROLE_KEY to bypass RLS
-    const updateRes = await fetch(`${INSFORGE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+    const dbUrl = `${INSFORGE_URL}/rest/v1/profiles?id=eq.${userId}`
+    console.log(`Updating database at: ${dbUrl}`)
+
+    const updateRes = await fetch(dbUrl, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -57,8 +61,11 @@ export default async function handler(req: Request) {
 
     if (!updateRes.ok) {
       const errorText = await updateRes.text()
+      console.error(`Database update failed. Status: ${updateRes.status}. Body: ${errorText}`)
       throw new Error(`Database update failed: ${updateRes.status} ${errorText}`)
     }
+
+    console.log(`Database update successful for user ${userId}`)
 
     return new Response(JSON.stringify({ success: true, athlete: stravaData.athlete }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -66,6 +73,7 @@ export default async function handler(req: Request) {
     })
 
   } catch (err) {
+    console.error('Exchange error:', err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
