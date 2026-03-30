@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@insforge/sdk@1.2.2"
 
 const STRAVA_CLIENT_ID = Deno.env.get('STRAVA_CLIENT_ID')
@@ -7,7 +6,7 @@ const INSFORGE_URL = Deno.env.get('INSFORGE_URL')
 const INSFORGE_ANON_KEY = Deno.env.get('INSFORGE_ANON_KEY')
 const INSFORGE_SERVICE_ROLE_KEY = Deno.env.get('INSFORGE_SERVICE_ROLE_KEY')
 
-serve(async (req) => {
+export default async function handler(req: Request) {
   // CORS headers
   const headers = new Headers({
     "Access-Control-Allow-Origin": "*",
@@ -40,15 +39,15 @@ serve(async (req) => {
 
     const stravaData = await stravaRes.json()
 
-    if (stravaData.errors) {
-      console.error('Strava token exchange error:', stravaData.errors)
-      throw new Error('Failed to exchange Strava token')
+    if (stravaData.errors || !stravaData.access_token) {
+      console.error('Strava token exchange error:', stravaData)
+      throw new Error('Failed to exchange Strava token: ' + (stravaData.message || 'Unknown error'))
     }
 
     // 2. Update user profile in InsForge
     const insforge = createClient({
       baseUrl: INSFORGE_URL!,
-      anonKey: INSFORGE_SERVICE_ROLE_KEY || INSFORGE_ANON_KEY!, // Use service role if available for bypass RLS
+      anonKey: INSFORGE_SERVICE_ROLE_KEY || INSFORGE_ANON_KEY!,
     })
 
     const { error } = await insforge.database
@@ -68,10 +67,11 @@ serve(async (req) => {
       status: 200,
     })
 
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (err) {
+    console.error('Exchange error:', err.message);
+    return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...headers, "Content-Type": "application/json" },
       status: 400,
     })
   }
-})
+}
