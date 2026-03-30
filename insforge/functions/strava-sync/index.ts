@@ -4,6 +4,16 @@ const INSFORGE_URL = Deno.env.get('INSFORGE_URL')
 const INSFORGE_SERVICE_ROLE_KEY = Deno.env.get('INSFORGE_SERVICE_ROLE_KEY')
 
 export default async function handler(req: Request) {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'apikey': INSFORGE_SERVICE_ROLE_KEY!,
@@ -11,7 +21,6 @@ export default async function handler(req: Request) {
   }
 
   try {
-    // 1. Get all users who have Strava connected
     const usersRes = await fetch(`${INSFORGE_URL}/rest/v1/profiles?strava_refresh_token=not.is.null&select=*`, {
       headers
     })
@@ -27,7 +36,6 @@ export default async function handler(req: Request) {
         const expiresAt = new Date(user.strava_expires_at).getTime()
         const now = Date.now()
 
-        // 2. Refresh token if expired
         if (now > (expiresAt - 300000)) {
           const refreshRes = await fetch('https://www.strava.com/oauth/token', {
             method: 'POST',
@@ -54,7 +62,6 @@ export default async function handler(req: Request) {
           })
         }
 
-        // 3. Fetch activities
         const lastSync = user.last_strava_sync_at 
           ? Math.floor(new Date(user.last_strava_sync_at).getTime() / 1000)
           : Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60)
@@ -72,7 +79,6 @@ export default async function handler(req: Request) {
 
           const stravaId = `strava_${act.id}`
           
-          // Upsert Session
           const sessionRes = await fetch(`${INSFORGE_URL}/rest/v1/sessions`, {
             method: 'POST',
             headers: { ...headers, 'Prefer': 'return=representation,resolution=merge-duplicates' },
@@ -89,7 +95,6 @@ export default async function handler(req: Request) {
 
           if (!session?.id) continue
 
-          // Map Activity to Exercise
           let exName = 'Running'
           if (act.type === 'Swim') exName = 'Swimming'
           if (act.type === 'Ride') exName = 'Cycling'
@@ -99,7 +104,6 @@ export default async function handler(req: Request) {
           const exercise = exercises[0]
 
           if (exercise) {
-            // Add Session Exercise
             const seRes = await fetch(`${INSFORGE_URL}/rest/v1/session_exercises`, {
               method: 'POST',
               headers: { ...headers, 'Prefer': 'return=representation' },
@@ -126,7 +130,6 @@ export default async function handler(req: Request) {
           syncedCount++
         }
 
-        // Update last sync
         await fetch(`${INSFORGE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
           method: 'PATCH',
           headers,
@@ -141,13 +144,13 @@ export default async function handler(req: Request) {
     }
 
     return new Response(JSON.stringify({ success: true, results }), {
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     })
 
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     })
   }

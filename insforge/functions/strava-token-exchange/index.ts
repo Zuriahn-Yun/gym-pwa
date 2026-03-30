@@ -4,15 +4,15 @@ const INSFORGE_URL = Deno.env.get('INSFORGE_URL')
 const INSFORGE_SERVICE_ROLE_KEY = Deno.env.get('INSFORGE_SERVICE_ROLE_KEY')
 
 export default async function handler(req: Request) {
-  // CORS headers
-  const headers = new Headers({
+  // Use a plain object for headers to ensure they are correctly spread in responses
+  const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  });
+  };
 
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -41,7 +41,7 @@ export default async function handler(req: Request) {
       throw new Error('Failed to exchange Strava token: ' + (stravaData.message || 'Unknown error'))
     }
 
-    // 2. Update user profile in InsForge using raw REST API to avoid SDK browser dependencies
+    // 2. Update user profile in InsForge using raw REST API
     const updateRes = await fetch(`${INSFORGE_URL}/rest/v1/profiles?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
@@ -63,14 +63,14 @@ export default async function handler(req: Request) {
     }
 
     return new Response(JSON.stringify({ success: true, athlete: stravaData.athlete }), {
-      headers: { ...headers, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     })
 
   } catch (err) {
     console.error('Exchange error:', err.message);
     return new Response(JSON.stringify({ error: err.message }), {
-      headers: { ...headers, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
     })
   }

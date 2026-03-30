@@ -80,8 +80,15 @@ export async function render(container, params) {
         syncBtn.disabled = true;
         syncBtn.textContent = 'Syncing...';
         try {
-          const res = await insforge.functions.invoke('strava-sync');
-          if (res.error) throw new Error(res.error);
+          const res = await fetch('https://ifu5d87t.functions.insforge.app/strava-sync', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ik_1a53b3d9989f708e4ee782d35f97d71a` // Using anon key for trigger, or could use no auth if public
+            }
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Sync failed');
           alert('Sync complete! Check your history for new activities.');
           syncBtn.textContent = 'Sync Activities Now';
           syncBtn.disabled = false;
@@ -124,11 +131,14 @@ export async function render(container, params) {
     if (stravaCode && stravaState === 'strava_settings') {
       container.innerHTML = '<div class="loading">Finalizing Strava connection...</div>';
       try {
-        const res = await insforge.functions.invoke('strava-token-exchange', {
-          body: { code: stravaCode, userId }
+        const res = await fetch('https://ifu5d87t.functions.insforge.app/strava-token-exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: stravaCode, userId })
         });
         
-        if (res.error) throw res.error;
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Connection failed');
 
         // Clean up URL parameters
         const url = new URL(window.location.href);
