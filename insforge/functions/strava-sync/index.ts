@@ -1,9 +1,11 @@
-const STRAVA_CLIENT_ID = Deno.env.get('STRAVA_CLIENT_ID')
-const STRAVA_CLIENT_SECRET = Deno.env.get('STRAVA_CLIENT_SECRET')
-const INSFORGE_URL = Deno.env.get('INSFORGE_URL')
-const INSFORGE_SERVICE_ROLE_KEY = Deno.env.get('INSFORGE_SERVICE_ROLE_KEY')
+import { createClient } from "https://esm.sh/@insforge/sdk@1.2.2"
 
 export default async function handler(req: Request) {
+  const STRAVA_CLIENT_ID = Deno.env.get('STRAVA_CLIENT_ID')
+  const STRAVA_CLIENT_SECRET = Deno.env.get('STRAVA_CLIENT_SECRET')
+  const INSFORGE_URL = Deno.env.get('INSFORGE_URL')
+  const INSFORGE_SERVICE_ROLE_KEY = Deno.env.get('INSFORGE_SERVICE_ROLE_KEY')
+
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -14,19 +16,19 @@ export default async function handler(req: Request) {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'apikey': INSFORGE_SERVICE_ROLE_KEY!,
-    'Authorization': `Bearer ${INSFORGE_SERVICE_ROLE_KEY}`,
-  }
+  const insforge = createClient({
+    baseUrl: INSFORGE_URL!,
+    anonKey: INSFORGE_SERVICE_ROLE_KEY!, 
+    auth: { persistSession: false }
+  })
 
   try {
-    const usersRes = await fetch(`${INSFORGE_URL}/rest/v1/profiles?strava_refresh_token=not.is.null&select=*`, {
-      headers
-    })
-    const users = await usersRes.json()
+    const { data: users, error: userError } = await insforge.database
+      .from('profiles')
+      .select('*')
+      .not('strava_refresh_token', 'is', null)
 
-    if (!Array.isArray(users)) throw new Error('Failed to fetch users')
+    if (userError) throw userError
 
     const results = []
 
@@ -51,15 +53,11 @@ export default async function handler(req: Request) {
           if (refreshData.errors) throw new Error('Token refresh failed')
           
           accessToken = refreshData.access_token
-          await fetch(`${INSFORGE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({
-              strava_access_token: accessToken,
-              strava_refresh_token: refreshData.refresh_token,
-              strava_expires_at: new Date(refreshData.expires_at * 1000).toISOString()
-            })
-          })
+          await insforge.database.from('profiles').update({
+            strava_access_token: accessToken,
+            strava_refresh_token: refreshData.refresh_token,
+            strava_expires_at: new Date(refreshData.expires_at * 1000).toISOString()
+          }).eq('id', user.id)
         }
 
         const lastSync = user.last_strava_sync_at 
@@ -79,62 +77,54 @@ export default async function handler(req: Request) {
 
           const stravaId = `strava_${act.id}`
           
-          const sessionRes = await fetch(`${INSFORGE_URL}/rest/v1/sessions`, {
-            method: 'POST',
-            headers: { ...headers, 'Prefer': 'return=representation,resolution=merge-duplicates' },
-            body: JSON.stringify({
+          const { data: session, error: sessionErr } = await insforge.database
+            .from('sessions')
+            .upsert({
               user_id: user.id,
               template_name: act.name,
               started_at: act.start_date,
               finished_at: new Date(new Date(act.start_date).getTime() + (act.elapsed_time * 1000)).toISOString(),
               strava_id: stravaId
-            })
-          })
-          const sessionsData = await sessionRes.json()
-          const session = Array.isArray(sessionsData) ? sessionsData[0] : sessionsData
+            }, { onConflict: 'strava_id' })
+            .select()
+            .single()
 
-          if (!session?.id) continue
+          if (sessionErr || !session) continue
 
           let exName = 'Running'
           if (act.type === 'Swim') exName = 'Swimming'
           if (act.type === 'Ride') exName = 'Cycling'
 
-          const exRes = await fetch(`${INSFORGE_URL}/rest/v1/exercises?name=eq.${exName}&select=id`, { headers })
-          const exercises = await exRes.json()
-          const exercise = exercises[0]
+          const { data: exercise } = await insforge.database
+            .from('exercises')
+            .select('id')
+            .eq('name', exName)
+            .single()
 
           if (exercise) {
-            const seRes = await fetch(`${INSFORGE_URL}/rest/v1/session_exercises`, {
-              method: 'POST',
-              headers: { ...headers, 'Prefer': 'return=representation' },
-              body: JSON.stringify({ session_id: session.id, exercise_id: exercise.id, position: 0 })
-            })
-            const ses = await seRes.json()
-            const se = Array.isArray(ses) ? ses[0] : ses
+            const { data: se } = await insforge.database
+              .from('session_exercises')
+              .insert({ session_id: session.id, exercise_id: exercise.id, position: 0 })
+              .select()
+              .single()
 
-            if (se?.id) {
+            if (se) {
               const isMetric = act.type === 'Swim'
-              await fetch(`${INSFORGE_URL}/rest/v1/sets`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                  session_exercise_id: se.id,
-                  set_number: 1,
-                  completed: true,
-                  distance: act.distance / (isMetric ? 1 : 1609.34),
-                  duration: act.moving_time
-                })
+              await insforge.database.from('sets').insert({
+                session_exercise_id: se.id,
+                set_number: 1,
+                completed: true,
+                distance: act.distance / (isMetric ? 1 : 1609.34),
+                duration: act.moving_time
               })
             }
           }
           syncedCount++
         }
 
-        await fetch(`${INSFORGE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ last_strava_sync_at: new Date().toISOString() })
-        })
+        await insforge.database.from('profiles')
+          .update({ last_strava_sync_at: new Date().toISOString() })
+          .eq('id', user.id)
 
         results.push({ user: user.email, synced: syncedCount })
 

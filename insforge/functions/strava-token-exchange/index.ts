@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@insforge/sdk@1.2.2"
+
 export default async function handler(req: Request) {
   const STRAVA_CLIENT_ID = Deno.env.get('STRAVA_CLIENT_ID')
   const STRAVA_CLIENT_SECRET = Deno.env.get('STRAVA_CLIENT_SECRET')
@@ -15,20 +17,13 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const body = await req.json()
-    console.log('Received request body:', JSON.stringify(body))
-    const { code, userId } = body
+    const { code, userId } = await req.json()
 
     if (!code || !userId) {
-      throw new Error(`Missing code or userId. Received code: ${code ? 'YES' : 'NO'}, userId: ${userId}`)
-    }
-
-    if (!STRAVA_CLIENT_ID || !STRAVA_CLIENT_SECRET || !INSFORGE_URL || !INSFORGE_SERVICE_ROLE_KEY) {
-      throw new Error("Server configuration error: Missing required environment variables.")
+      throw new Error("Missing code or userId")
     }
 
     // 1. Exchange code for Strava tokens
-    console.log('Exchanging code for Strava tokens...')
     const stravaRes = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -43,37 +38,27 @@ export default async function handler(req: Request) {
     const stravaData = await stravaRes.json()
 
     if (stravaData.errors || !stravaData.access_token) {
-      console.error('Strava API Error:', JSON.stringify(stravaData))
-      throw new Error('Failed to exchange Strava token: ' + (stravaData.message || 'Check logs'))
+      throw new Error('Strava Error: ' + (stravaData.message || 'Token exchange failed'))
     }
 
-    // 2. Update user profile in InsForge
-    const cleanUserId = String(userId).trim()
-    const dbUrl = `${INSFORGE_URL}/rest/v1/profiles?id=eq.${cleanUserId}`
-    console.log(`Attempting DB Update at: ${dbUrl}`)
+    // 2. Update user profile using the SDK (Server-side compatible)
+    const insforge = createClient({
+      baseUrl: INSFORGE_URL!,
+      anonKey: INSFORGE_SERVICE_ROLE_KEY!,
+      auth: { persistSession: false } // Crucial for server environment
+    })
 
-    const updateRes = await fetch(dbUrl, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': INSFORGE_SERVICE_ROLE_KEY,
-        'Authorization': `Bearer ${INSFORGE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
+    const { error } = await insforge.database
+      .from('profiles')
+      .update({
         strava_access_token: stravaData.access_token,
         strava_refresh_token: stravaData.refresh_token,
         strava_expires_at: new Date(stravaData.expires_at * 1000).toISOString(),
         strava_athlete_id: String(stravaData.athlete.id)
       })
-    })
+      .eq('id', userId)
 
-    if (!updateRes.ok) {
-      const errorText = await updateRes.text()
-      console.error(`DB Update Failed. Status: ${updateRes.status}. Error: ${errorText}`)
-      throw new Error(`Database update failed: ${updateRes.status}`)
-    }
-
-    console.log('Database update successful!')
+    if (error) throw new Error('DB Error: ' + error.message)
 
     return new Response(JSON.stringify({ success: true, athlete: stravaData.athlete }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -81,7 +66,6 @@ export default async function handler(req: Request) {
     })
 
   } catch (err) {
-    console.error('CRITICAL HANDLER ERROR:', err.message)
     return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
