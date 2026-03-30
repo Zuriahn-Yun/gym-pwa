@@ -194,7 +194,7 @@ async function run() {
   if (pageErrors.length === 0) {
     console.log('(none)');
   } else {
-    consoleErrors.forEach((entry, i) => {
+    pageErrors.forEach((entry, i) => {
       console.log(`  [${i}] ${entry.message}`);
       if (entry.stack) console.log(`       Stack: ${entry.stack}`);
     });
@@ -216,6 +216,14 @@ async function run() {
   if (pageErrors.length > 0) {
     console.error(`\nFAIL: ${pageErrors.length} uncaught page errors found.`);
     process.exit(1);
+  }
+
+  if (consoleErrors.length > 0) {
+    const hasCritical = consoleErrors.some(e => e.text.includes('ReferenceError') || e.text.includes('Error'));
+    if (hasCritical) {
+      console.error(`\nFAIL: ${consoleErrors.length} console errors found.`);
+      process.exit(1);
+    }
   }
 
   const criticalFailures = networkFailures.filter(f => f.url.startsWith(BASE_URL));

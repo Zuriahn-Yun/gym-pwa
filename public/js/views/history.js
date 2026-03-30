@@ -1,89 +1,205 @@
 import * as api from '../api.js';
 
 export async function render(container, params) {
-  container.innerHTML = '<div class="loading">Loading...</div>';
-  let sessions = await api.getSessions(50, 0);
+  const userId = params?.userId ?? null;
+  let currentDate = new Date();
+  let selectedDate = new Date();
+  let sessions = [];
 
-  const fmtDate = (iso) => new Date(iso).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
-  const fmtDur = (start, end) => {
-    if (!end) return 'In progress';
-    const m = Math.round((new Date(end) - new Date(start)) / 60000);
-    return m < 60 ? `${m}m` : `${Math.floor(m/60)}h ${m%60}m`;
-  };
-
-  function sessionCardHtml(s) {
-    return `<div class="card session-card" data-sid="${s.id}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div style="flex:1;min-width:0;cursor:pointer;" class="session-toggle">
-          <div class="card-title">${s.templates?.name ?? s.template_name ?? 'Custom Workout'}</div>
-          <div style="color:var(--text-muted);font-size:13px;">${fmtDate(s.started_at)} · ${fmtDur(s.started_at, s.finished_at)}</div>
-        </div>
-        <button class="btn btn-danger btn-sm del-session" data-sid="${s.id}" style="margin-left:12px;flex-shrink:0;">Delete</button>
-      </div>
-      <div class="session-detail" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;"></div>
-    </div>`;
+  function getDaysInMonth(year, month) {
+    return new Date(year, month + 1, 0).getDate();
   }
 
-  function renderList() {
-    const listEl = container.querySelector('#session-list');
-    if (!listEl) return;
-    listEl.innerHTML = sessions.length === 0
-      ? '<div class="empty"><div class="empty-text">No workouts logged yet</div><div class="empty-sub">Start a workout from Today</div></div>'
-      : sessions.map(sessionCardHtml).join('');
+  function getFirstDayOfMonth(year, month) {
+    return new Date(year, month, 1).getDay();
   }
 
-  container.innerHTML = `<div class="page">
-    <h1 class="page-title">History</h1>
-    <div id="session-list"></div>
-  </div>`;
-
-  renderList();
-
-  container.addEventListener('click', async (e) => {
-    // Delete session
-    const delBtn = e.target.closest('.del-session');
-    if (delBtn) {
-      e.stopPropagation();
-      if (!confirm('Delete this workout?')) return;
-      const sid = parseInt(delBtn.dataset.sid);
-      try {
-        await api.deleteSession(sid);
-        sessions = sessions.filter(s => s.id !== sid);
-        renderList();
-      } catch (err) {
-        alert('Failed to delete: ' + err.message);
-      }
-      return;
-    }
-
-    // Toggle detail
-    const toggle = e.target.closest('.session-toggle');
-    if (!toggle) return;
-    const card = toggle.closest('.session-card');
-    const detail = card.querySelector('.session-detail');
-    if (detail.style.display !== 'none') { detail.style.display = 'none'; return; }
-    detail.style.display = 'block';
-    detail.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">Loading...</div>';
-    let sess;
+  async function loadMonthData() {
+    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
+    
     try {
-      sess = await api.getSession(parseInt(card.dataset.sid));
+      sessions = await api.getSessionsByDateRange(startOfMonth, endOfMonth);
+      renderCalendar();
+      renderDayDetail();
     } catch (err) {
-      detail.innerHTML = `<div style="color:var(--text-muted);font-size:13px;">Failed to load: ${err.message}</div>`;
-      return;
+      console.error('Failed to load month data:', err);
     }
-    const sessExercises = sess.session_exercises || [];
-    if (!sessExercises.length) {
-      detail.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">No exercises logged</div>';
-      return;
+  }
+
+  function renderCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthName = currentDate.toLocaleString('default', { month: 'long' });
+    const daysInMonth = getDaysInMonth(year, month);
+    const firstDay = getFirstDayOfMonth(year, month);
+    
+    const calendarContainer = container.querySelector('#calendar-view');
+    if (!calendarContainer) return;
+
+    let html = `
+      <div class="calendar-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <button class="btn btn-sm btn-secondary" id="prev-month">&lsaquo;</button>
+        <h2>${monthName} ${year}</h2>
+        <button class="btn btn-sm btn-secondary" id="next-month">&rsaquo;</button>
+      </div>
+      <div class="calendar-grid">
+        ${['S','M','T','W','T','F','S'].map(d => `<div style="font-weight:600; font-size:12px; color:var(--text-muted); padding-bottom:8px;">${d}</div>`).join('')}
+    `;
+
+    // Empty spaces for first week
+    for (let i = 0; i < firstDay; i++) {
+      html += `<div class="calendar-day empty"></div>`;
     }
-    detail.innerHTML = sessExercises.map(ex => {
-      const done = (ex.sets || []).filter(s => s.completed);
-      const summary = done.length ? done.map(s => `${s.weight} lbs×${s.reps}`).join(', ') : 'No completed sets';
-      const exName = ex.exercises?.name ?? ex.name ?? 'Unknown';
-      return `<div style="margin-bottom:8px;">
-        <div style="font-weight:600;font-size:14px;">${exName}</div>
-        <div style="color:var(--text-muted);font-size:12px;margin-top:2px;">${summary}</div>
-      </div>`;
-    }).join('');
-  });
+
+    // Days of month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+      const isSelected = selectedDate.toDateString() === new Date(year, month, day).toDateString();
+      const hasWorkout = sessions.some(s => new Date(s.started_at).toDateString() === new Date(year, month, day).toDateString());
+      
+      let classes = ['calendar-day'];
+      if (isSelected) classes.push('selected');
+      if (isToday) classes.push('today');
+      if (hasWorkout) classes.push('has-workout');
+      
+      html += `
+        <div class="${classes.join(' ')}" data-day="${day}">
+          ${day}
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+    calendarContainer.innerHTML = html;
+
+    // Listeners
+    container.querySelector('#prev-month').onclick = () => {
+      currentDate.setMonth(currentDate.getMonth() - 1);
+      loadMonthData();
+    };
+    container.querySelector('#next-month').onclick = () => {
+      currentDate.setMonth(currentDate.getMonth() + 1);
+      loadMonthData();
+    };
+    container.querySelectorAll('.calendar-day[data-day]').forEach(el => {
+      el.onclick = () => {
+        selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), parseInt(el.dataset.day));
+        renderCalendar();
+        renderDayDetail();
+      };
+      el.ondblclick = (e) => {
+        e.preventDefault();
+        selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), parseInt(el.dataset.day));
+        showAddWorkoutModal();
+      };
+    });
+  }
+
+  function renderDayDetail() {
+    const detailContainer = container.querySelector('#day-detail');
+    if (!detailContainer) return;
+
+    const daySessions = sessions.filter(s => new Date(s.started_at).toDateString() === selectedDate.toDateString());
+    const fmtDate = selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+    let html = `
+      <div style="margin-top:24px; border-top:1px solid var(--border); padding-top:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="margin:0; font-size:16px;">${fmtDate}</h3>
+          <button class="btn btn-sm btn-primary" id="add-workout-btn">+ Add</button>
+        </div>
+    `;
+
+    if (daySessions.length === 0) {
+      html += `<div class="empty" style="padding:20px;"><div class="empty-text">No workouts logged</div></div>`;
+    } else {
+      html += daySessions.map(s => `
+        <div class="card session-card" data-sid="${s.id}" style="margin-bottom:12px; cursor:pointer;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div class="card-title" style="margin:0;">${s.templates?.name ?? s.template_name ?? 'Custom Workout'}</div>
+              <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                ${new Date(s.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+            <span style="color:var(--text-muted);">›</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    html += `</div>`;
+    detailContainer.innerHTML = html;
+
+    container.querySelector('#add-workout-btn').onclick = () => showAddWorkoutModal();
+    container.querySelectorAll('.session-card[data-sid]').forEach(el => {
+      el.onclick = () => { location.hash = '#/history/' + el.dataset.sid; };
+    });
+  }
+
+  async function showAddWorkoutModal() {
+    try {
+      const templates = await api.getTemplates();
+      const modal = document.createElement('div');
+      modal.className = 'modal-backdrop';
+      modal.innerHTML = `
+        <div class="modal card" style="width:100%; max-width:400px; margin:20px; padding:24px;">
+          <h2 style="margin-top:0; margin-bottom:20px;">Add Workout</h2>
+          <div style="margin-bottom:16px;">
+            <div style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Choose a template</div>
+            <select id="template-select" class="btn btn-secondary btn-full" style="text-align:left; appearance:auto; padding:10px;">
+              <option value="">Empty Workout</option>
+              ${templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+            </select>
+          </div>
+          <div style="display:flex; gap:12px;">
+            <button class="btn btn-secondary btn-full" id="modal-cancel">Cancel</button>
+            <button class="btn btn-primary btn-full" id="modal-confirm">Add</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      modal.querySelector('#modal-cancel').onclick = () => modal.remove();
+      modal.querySelector('#modal-confirm').onclick = async () => {
+        const templateId = modal.querySelector('#template-select').value;
+        const confirmBtn = modal.querySelector('#modal-confirm');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Adding...';
+        try {
+          // Set the time to noon to avoid timezone shift issues during initial creation
+          const dateWithTime = new Date(selectedDate);
+          dateWithTime.setHours(12, 0, 0, 0);
+          const s = await api.createSession(templateId || null, userId, dateWithTime.toISOString());
+          modal.remove();
+          // If it's today, we might want to navigate to the workout view immediately
+          if (selectedDate.toDateString() === new Date().toDateString()) {
+            location.hash = '#/workout/' + s.id;
+          } else {
+            await loadMonthData();
+          }
+        } catch (err) {
+          alert('Failed to add workout: ' + err.message);
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'Add';
+        }
+      };
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  container.innerHTML = `
+    <div class="page">
+      <h1 class="page-title">History</h1>
+      <div id="calendar-view"></div>
+      <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:8px;">
+        Double-tap a day to quickly add a workout
+      </div>
+      <div id="day-detail"></div>
+    </div>
+  `;
+
+  await loadMonthData();
 }
