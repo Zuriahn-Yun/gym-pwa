@@ -98,8 +98,8 @@ export async function render(container, params) {
     if (connectBtn) {
       connectBtn.onclick = () => {
         const clientId = '146440'; 
-        const redirectUri = window.location.origin + '/#settings';
-        window.location.href = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read,activity:read_all`;
+        const redirectUri = window.location.origin + '/';
+        window.location.href = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read,activity:read_all&state=strava_settings`;
       };
     }
 
@@ -120,9 +120,9 @@ export async function render(container, params) {
     // Handle OAuth callback (if redirected back with code)
     const urlParams = new URLSearchParams(window.location.search);
     const stravaCode = urlParams.get('code');
-    const isSettingsPage = window.location.hash.includes('settings');
+    const stravaState = urlParams.get('state');
 
-    if (stravaCode && isSettingsPage) {
+    if (stravaCode && stravaState === 'strava_settings') {
       container.innerHTML = '<div class="loading">Finalizing Strava connection...</div>';
       try {
         const res = await insforge.functions.invoke('strava-token-exchange', {
@@ -133,14 +133,16 @@ export async function render(container, params) {
 
         // Clean up URL parameters
         const url = new URL(window.location.href);
-        url.searchParams.delete('code');
-        url.searchParams.delete('scope');
+        url.search = ''; 
         window.history.replaceState({}, '', url.pathname + url.hash);
 
         // Success! Re-render page
         render(container, params);
       } catch (err) {
         alert('Strava connection failed: ' + err.message);
+        const url = new URL(window.location.href);
+        url.search = '';
+        window.history.replaceState({}, '', url.pathname + url.hash);
         render(container, params);
       }
     }

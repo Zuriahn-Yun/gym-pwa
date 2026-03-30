@@ -72,16 +72,24 @@ export async function render(container, params) {
       `;
     }
 
+    // Fill remaining cells to reach 42 (6 rows x 7 days)
+    const totalCellsUsed = firstDay + daysInMonth;
+    for (let i = totalCellsUsed; i < 42; i++) {
+      html += `<div class="calendar-day empty"></div>`;
+    }
+
     html += `</div></div>`;
     calendarContainer.innerHTML = html;
 
     // Listeners
     container.querySelector('#prev-month').onclick = () => {
       currentDate.setMonth(currentDate.getMonth() - 1);
+      selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       loadMonthData();
     };
     container.querySelector('#next-month').onclick = () => {
       currentDate.setMonth(currentDate.getMonth() + 1);
+      selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       loadMonthData();
     };
     container.querySelectorAll('.calendar-day[data-day]').forEach(el => {
