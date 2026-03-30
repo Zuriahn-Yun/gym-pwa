@@ -4,7 +4,6 @@ const INSFORGE_URL = Deno.env.get('INSFORGE_URL')
 const INSFORGE_SERVICE_ROLE_KEY = Deno.env.get('INSFORGE_SERVICE_ROLE_KEY')
 
 export default async function handler(req: Request) {
-  // Use a plain object for headers to ensure they are correctly spread in responses
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -37,11 +36,10 @@ export default async function handler(req: Request) {
     const stravaData = await stravaRes.json()
 
     if (stravaData.errors || !stravaData.access_token) {
-      console.error('Strava token exchange error:', stravaData)
       throw new Error('Failed to exchange Strava token: ' + (stravaData.message || 'Unknown error'))
     }
 
-    // 2. Update user profile in InsForge using raw REST API
+    // 2. Update user profile in InsForge using SERVICE_ROLE_KEY to bypass RLS
     const updateRes = await fetch(`${INSFORGE_URL}/rest/v1/profiles?id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
@@ -59,7 +57,7 @@ export default async function handler(req: Request) {
 
     if (!updateRes.ok) {
       const errorText = await updateRes.text()
-      throw new Error(`Database update failed: ${errorText}`)
+      throw new Error(`Database update failed: ${updateRes.status} ${errorText}`)
     }
 
     return new Response(JSON.stringify({ success: true, athlete: stravaData.athlete }), {
@@ -68,7 +66,6 @@ export default async function handler(req: Request) {
     })
 
   } catch (err) {
-    console.error('Exchange error:', err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
