@@ -1,12 +1,12 @@
 'use strict';
 
-const CACHE = 'gym-v6';
+const CACHE = 'gym-v7';
 const STATIC = [
   '/', '/index.html', '/style.css', '/manifest.json',
   '/icons/icon-192.png', '/icons/icon-512.png',
   '/js/app.js', '/js/api.js', '/js/insforge.js',
   '/js/views/today.js', '/js/views/workout.js',
-  '/js/views/schedule.js', '/js/views/templates.js',
+  '/js/views/settings.js', '/js/views/templates.js',
   '/js/views/exercises.js', '/js/views/history.js',
   '/js/views/login.js',
   '/js/vendor/insforge-sdk-bundle.mjs',
