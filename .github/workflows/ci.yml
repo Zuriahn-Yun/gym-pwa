@@ -95,3 +95,4 @@ jobs:
           npx @insforge/cli link --project-id $INSFORGE_PROJECT_ID --org-id $INSFORGE_ORG_ID -y
           npx @insforge/cli deployments deploy public/ --yes
           npx @insforge/cli functions deploy strava-token-exchange --yes
+          npx @insforge/cli functions deploy strava-sync --yes

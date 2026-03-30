@@ -28,8 +28,10 @@ This file serves as a source of truth for AI agents and developers regarding the
 - [ ] **Expanded Activities:**
   - [x] Basic support for Running/Swimming (Schema level).
   - [ ] Enhanced UI for cardio/endurance activities (Pace, Laps, etc.).
-- [ ] **Integrations:**
-  - [ ] Strava API integration for syncing running/swimming data.
+- [x] **Integrations:**
+  - [x] Strava API integration for syncing running/swimming data.
+  - [x] Secure Edge Function for token exchange and background sync.
+  - [x] Automated 30-minute background sync via InsForge Schedules.
 - [ ] **Data Optimization:**
   - [ ] Client-side caching for calendar data.
   - [ ] Lighter queries for month-view dots.
