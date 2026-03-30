@@ -76,8 +76,8 @@ export default async function handler(req: Request) {
         let syncedCount = 0
         for (const act of activities) {
           // 4. Map to Gym PWA Workout
-          // Support Run and Swim specifically
-          if (act.type !== 'Run' && act.type !== 'Swim') continue
+          // Support Run, Swim, and Ride
+          if (act.type !== 'Run' && act.type !== 'Swim' && act.type !== 'Ride') continue
 
           const stravaId = `strava_${act.id}`
           
@@ -100,7 +100,10 @@ export default async function handler(req: Request) {
           }
 
           // Fetch or Find the right exercise ID
-          const exName = act.type === 'Run' ? 'Running' : 'Swimming'
+          let exName = 'Running'
+          if (act.type === 'Swim') exName = 'Swimming'
+          if (act.type === 'Ride') exName = 'Cycling'
+
           const { data: exercise } = await insforge.database
             .from('exercises')
             .select('id')
@@ -121,11 +124,12 @@ export default async function handler(req: Request) {
 
             if (se) {
               // Add the activity data as a "Set"
+              const isMetric = act.type === 'Swim'
               await insforge.database.from('sets').insert({
                 session_exercise_id: se.id,
                 set_number: 1,
                 completed: true,
-                distance: act.distance / (act.type === 'Run' ? 1609.34 : 1), // Miles for Run, Meters for Swim
+                distance: act.distance / (isMetric ? 1 : 1609.34), // Miles for Run/Ride, Meters for Swim
                 duration: act.moving_time
               })
             }
