@@ -15,6 +15,10 @@ This file serves as a source of truth for AI agents and developers regarding the
 - **Templates:**
   - Create and manage workout templates.
   - Add/remove/reorder exercises within templates.
+- **Settings:**
+  - Dedicated settings page with account management.
+  - "Connect to Strava" button for activity syncing.
+  - Centralized "Sign Out" button.
 - **Exercise Database:**
   - Searchable list of exercises.
   - Support for different exercise types (Strength, Running, Swimming).
