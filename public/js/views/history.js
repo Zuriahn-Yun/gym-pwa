@@ -38,13 +38,14 @@ export async function render(container, params) {
     if (!calendarContainer) return;
 
     let html = `
-      <div class="calendar-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <button class="btn btn-sm btn-secondary" id="prev-month">&lsaquo;</button>
-        <h2>${monthName} ${year}</h2>
-        <button class="btn btn-sm btn-secondary" id="next-month">&rsaquo;</button>
-      </div>
-      <div class="calendar-grid">
-        ${['S','M','T','W','T','F','S'].map(d => `<div style="font-weight:600; font-size:12px; color:var(--text-muted); padding-bottom:8px;">${d}</div>`).join('')}
+      <div class="calendar-view">
+        <div class="calendar-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <button class="btn btn-ghost btn-sm" id="prev-month" style="min-width:44px;">&lsaquo;</button>
+          <h2>${monthName} ${year}</h2>
+          <button class="btn btn-ghost btn-sm" id="next-month" style="min-width:44px;">&rsaquo;</button>
+        </div>
+        <div class="calendar-grid">
+          ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div class="calendar-weekday">${d}</div>`).join('')}
     `;
 
     // Empty spaces for first week
@@ -54,9 +55,10 @@ export async function render(container, params) {
 
     // Days of month
     for (let day = 1; day <= daysInMonth; day++) {
-      const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
-      const isSelected = selectedDate.toDateString() === new Date(year, month, day).toDateString();
-      const hasWorkout = sessions.some(s => new Date(s.started_at).toDateString() === new Date(year, month, day).toDateString());
+      const dayDate = new Date(year, month, day);
+      const isToday = new Date().toDateString() === dayDate.toDateString();
+      const isSelected = selectedDate.toDateString() === dayDate.toDateString();
+      const hasWorkout = sessions.some(s => new Date(s.started_at).toDateString() === dayDate.toDateString());
       
       let classes = ['calendar-day'];
       if (isSelected) classes.push('selected');
@@ -65,12 +67,12 @@ export async function render(container, params) {
       
       html += `
         <div class="${classes.join(' ')}" data-day="${day}">
-          ${day}
+          <span>${day}</span>
         </div>
       `;
     }
 
-    html += `</div>`;
+    html += `</div></div>`;
     calendarContainer.innerHTML = html;
 
     // Listeners

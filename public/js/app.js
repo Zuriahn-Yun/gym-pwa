@@ -2,7 +2,6 @@ import { insforge } from './insforge.js';
 import { upsertProfile } from './api.js';
 import { render as renderToday } from './views/today.js';
 import { render as renderWorkout } from './views/workout.js';
-import { render as renderSchedule } from './views/schedule.js';
 import { render as renderTemplates } from './views/templates.js';
 import { render as renderExercises } from './views/exercises.js';
 import { render as renderHistory } from './views/history.js';
@@ -11,7 +10,6 @@ import { render as renderLogin } from './views/login.js';
 const views = {
   today: renderToday,
   workout: renderWorkout,
-  schedule: renderSchedule,
   templates: renderTemplates,
   exercises: renderExercises,
   history: renderHistory,
