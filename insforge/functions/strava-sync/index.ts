@@ -1,29 +1,23 @@
-import { createClient } from "https://esm.sh/@insforge/sdk@1.2.2"
-
 const STRAVA_CLIENT_ID = Deno.env.get('STRAVA_CLIENT_ID')
 const STRAVA_CLIENT_SECRET = Deno.env.get('STRAVA_CLIENT_SECRET')
 const INSFORGE_URL = Deno.env.get('INSFORGE_URL')
 const INSFORGE_SERVICE_ROLE_KEY = Deno.env.get('INSFORGE_SERVICE_ROLE_KEY')
 
 export default async function handler(req: Request) {
-  // Logic only allows POST from authorized cron or manual trigger
-  const authHeader = req.headers.get('Authorization')
-  // In production, you'd check a secret here if it's not a public trigger
-  
-  const insforge = createClient({
-    baseUrl: INSFORGE_URL!,
-    anonKey: INSFORGE_SERVICE_ROLE_KEY!, 
-    auth: { persistSession: false }
-  })
+  const headers = {
+    'Content-Type': 'application/json',
+    'apikey': INSFORGE_SERVICE_ROLE_KEY!,
+    'Authorization': `Bearer ${INSFORGE_SERVICE_ROLE_KEY}`,
+  }
 
   try {
     // 1. Get all users who have Strava connected
-    const { data: users, error: userError } = await insforge.database
-      .from('profiles')
-      .select('*')
-      .not('strava_refresh_token', 'is', null)
+    const usersRes = await fetch(`${INSFORGE_URL}/rest/v1/profiles?strava_refresh_token=not.is.null&select=*`, {
+      headers
+    })
+    const users = await usersRes.json()
 
-    if (userError) throw userError
+    if (!Array.isArray(users)) throw new Error('Failed to fetch users')
 
     const results = []
 
@@ -33,9 +27,8 @@ export default async function handler(req: Request) {
         const expiresAt = new Date(user.strava_expires_at).getTime()
         const now = Date.now()
 
-        // 2. Refresh token if expired (or expiring in < 5 mins)
+        // 2. Refresh token if expired
         if (now > (expiresAt - 300000)) {
-          console.log(`Refreshing token for user ${user.id}...`)
           const refreshRes = await fetch('https://www.strava.com/oauth/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -50,15 +43,18 @@ export default async function handler(req: Request) {
           if (refreshData.errors) throw new Error('Token refresh failed')
           
           accessToken = refreshData.access_token
-          await insforge.database.from('profiles').update({
-            strava_access_token: accessToken,
-            strava_refresh_token: refreshData.refresh_token,
-            strava_expires_at: new Date(refreshData.expires_at * 1000).toISOString()
-          }).eq('id', user.id)
+          await fetch(`${INSFORGE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              strava_access_token: accessToken,
+              strava_refresh_token: refreshData.refresh_token,
+              strava_expires_at: new Date(refreshData.expires_at * 1000).toISOString()
+            })
+          })
         }
 
         // 3. Fetch activities
-        // If first sync, get last 30 days. Otherwise get since last_strava_sync_at.
         const lastSync = user.last_strava_sync_at 
           ? Math.floor(new Date(user.last_strava_sync_at).getTime() / 1000)
           : Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60)
@@ -68,84 +64,78 @@ export default async function handler(req: Request) {
         })
         const activities = await activitiesRes.json()
 
-        if (!Array.isArray(activities)) {
-          console.error(`Invalid activities response for user ${user.id}:`, activities)
-          continue
-        }
+        if (!Array.isArray(activities)) continue
 
         let syncedCount = 0
         for (const act of activities) {
-          // 4. Map to Gym PWA Workout
-          // Support Run, Swim, and Ride
           if (act.type !== 'Run' && act.type !== 'Swim' && act.type !== 'Ride') continue
 
           const stravaId = `strava_${act.id}`
           
-          // Insert Session
-          const { data: session, error: sessionErr } = await insforge.database
-            .from('sessions')
-            .upsert({
+          // Upsert Session
+          const sessionRes = await fetch(`${INSFORGE_URL}/rest/v1/sessions`, {
+            method: 'POST',
+            headers: { ...headers, 'Prefer': 'return=representation,resolution=merge-duplicates' },
+            body: JSON.stringify({
               user_id: user.id,
               template_name: act.name,
               started_at: act.start_date,
               finished_at: new Date(new Date(act.start_date).getTime() + (act.elapsed_time * 1000)).toISOString(),
               strava_id: stravaId
-            }, { onConflict: 'strava_id' })
-            .select()
-            .single()
+            })
+          })
+          const sessionsData = await sessionRes.json()
+          const session = Array.isArray(sessionsData) ? sessionsData[0] : sessionsData
 
-          if (sessionErr) {
-            console.error('Session upsert err:', sessionErr)
-            continue
-          }
+          if (!session?.id) continue
 
-          // Fetch or Find the right exercise ID
+          // Map Activity to Exercise
           let exName = 'Running'
           if (act.type === 'Swim') exName = 'Swimming'
           if (act.type === 'Ride') exName = 'Cycling'
 
-          const { data: exercise } = await insforge.database
-            .from('exercises')
-            .select('id')
-            .eq('name', exName)
-            .single()
+          const exRes = await fetch(`${INSFORGE_URL}/rest/v1/exercises?name=eq.${exName}&select=id`, { headers })
+          const exercises = await exRes.json()
+          const exercise = exercises[0]
 
           if (exercise) {
-            // Add Exercise to Session
-            const { data: se } = await insforge.database
-              .from('session_exercises')
-              .insert({
-                session_id: session.id,
-                exercise_id: exercise.id,
-                position: 0
-              })
-              .select()
-              .single()
+            // Add Session Exercise
+            const seRes = await fetch(`${INSFORGE_URL}/rest/v1/session_exercises`, {
+              method: 'POST',
+              headers: { ...headers, 'Prefer': 'return=representation' },
+              body: JSON.stringify({ session_id: session.id, exercise_id: exercise.id, position: 0 })
+            })
+            const ses = await seRes.json()
+            const se = Array.isArray(ses) ? ses[0] : ses
 
-            if (se) {
-              // Add the activity data as a "Set"
+            if (se?.id) {
               const isMetric = act.type === 'Swim'
-              await insforge.database.from('sets').insert({
-                session_exercise_id: se.id,
-                set_number: 1,
-                completed: true,
-                distance: act.distance / (isMetric ? 1 : 1609.34), // Miles for Run/Ride, Meters for Swim
-                duration: act.moving_time
+              await fetch(`${INSFORGE_URL}/rest/v1/sets`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  session_exercise_id: se.id,
+                  set_number: 1,
+                  completed: true,
+                  distance: act.distance / (isMetric ? 1 : 1609.34),
+                  duration: act.moving_time
+                })
               })
             }
           }
           syncedCount++
         }
 
-        // 5. Update last sync time
-        await insforge.database.from('profiles')
-          .update({ last_strava_sync_at: new Date().toISOString() })
-          .eq('id', user.id)
+        // Update last sync
+        await fetch(`${INSFORGE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ last_strava_sync_at: new Date().toISOString() })
+        })
 
-        results.push({ user: user.email, activitiesFetched: activities.length, activitiesSynced: syncedCount })
+        results.push({ user: user.email, synced: syncedCount })
 
       } catch (userErr) {
-        console.error(`Failed to sync user ${user.id}:`, userErr.message)
         results.push({ user: user.email, error: userErr.message })
       }
     }

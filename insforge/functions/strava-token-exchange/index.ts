@@ -1,9 +1,6 @@
-import { createClient } from "https://esm.sh/@insforge/sdk@1.2.2"
-
 const STRAVA_CLIENT_ID = Deno.env.get('STRAVA_CLIENT_ID')
 const STRAVA_CLIENT_SECRET = Deno.env.get('STRAVA_CLIENT_SECRET')
 const INSFORGE_URL = Deno.env.get('INSFORGE_URL')
-const INSFORGE_ANON_KEY = Deno.env.get('INSFORGE_ANON_KEY')
 const INSFORGE_SERVICE_ROLE_KEY = Deno.env.get('INSFORGE_SERVICE_ROLE_KEY')
 
 export default async function handler(req: Request) {
@@ -44,24 +41,26 @@ export default async function handler(req: Request) {
       throw new Error('Failed to exchange Strava token: ' + (stravaData.message || 'Unknown error'))
     }
 
-    // 2. Update user profile in InsForge
-    const insforge = createClient({
-      baseUrl: INSFORGE_URL!,
-      anonKey: INSFORGE_SERVICE_ROLE_KEY || INSFORGE_ANON_KEY!,
-      auth: { persistSession: false }
-    })
-
-    const { error } = await insforge.database
-      .from('profiles')
-      .update({
+    // 2. Update user profile in InsForge using raw REST API to avoid SDK browser dependencies
+    const updateRes = await fetch(`${INSFORGE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': INSFORGE_SERVICE_ROLE_KEY!,
+        'Authorization': `Bearer ${INSFORGE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({
         strava_access_token: stravaData.access_token,
         strava_refresh_token: stravaData.refresh_token,
         strava_expires_at: new Date(stravaData.expires_at * 1000).toISOString(),
         strava_athlete_id: String(stravaData.athlete.id)
       })
-      .eq('id', userId)
+    })
 
-    if (error) throw error
+    if (!updateRes.ok) {
+      const errorText = await updateRes.text()
+      throw new Error(`Database update failed: ${errorText}`)
+    }
 
     return new Response(JSON.stringify({ success: true, athlete: stravaData.athlete }), {
       headers: { ...headers, "Content-Type": "application/json" },
