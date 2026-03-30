@@ -172,6 +172,16 @@ export async function getSessions(limit = 20, offset = 0) {
   return data;
 }
 
+export async function getSessionsByDateRange(startDate, endDate) {
+  const { data, error } = await db.from('sessions')
+    .select('*, templates(name)')
+    .gte('started_at', startDate)
+    .lte('started_at', endDate)
+    .order('started_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function getSession(id) {
   const { data, error } = await db.from('sessions')
     .select('*, templates(name), session_exercises(*, exercises(id, name, muscle_group), sets(*))')
@@ -188,9 +198,13 @@ export async function getSession(id) {
   return data;
 }
 
-export async function createSession(template_id, user_id) {
+export async function createSession(template_id, user_id, date = null) {
   if (!user_id) throw new Error('User ID is required to create a session');
-  const row = { template_id: template_id || null, user_id: user_id };
+  const row = { 
+    template_id: template_id || null, 
+    user_id: user_id,
+    started_at: date ? new Date(date).toISOString() : new Date().toISOString()
+  };
   const { data: session, error } = await db.from('sessions')
     .insert([row])
     .select()
