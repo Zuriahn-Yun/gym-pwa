@@ -45,7 +45,7 @@ export async function render(container, params) {
           <button class="btn btn-ghost btn-sm" id="next-month" style="min-width:44px;">&rsaquo;</button>
         </div>
         <div class="calendar-grid">
-          ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div class="calendar-weekday">${d}</div>`).join('')}
+          ${['S','M','T','W','T','F','S'].map(d => `<div class="calendar-weekday">${d}</div>`).join('')}
     `;
 
     // Empty spaces for first week
