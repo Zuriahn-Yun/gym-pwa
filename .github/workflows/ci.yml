@@ -2,10 +2,14 @@ name: CI/CD
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint-and-build:
@@ -85,4 +89,4 @@ jobs:
         run: |
           npx @insforge/cli login --email -y
           npx @insforge/cli link --project-id $INSFORGE_PROJECT_ID --org-id $INSFORGE_ORG_ID -y
-          npx @insforge/cli deployments deploy public/
+          npx @insforge/cli deployments deploy public/ --yes

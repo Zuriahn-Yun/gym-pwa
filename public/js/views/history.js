@@ -88,6 +88,11 @@ export async function render(container, params) {
         renderCalendar();
         renderDayDetail();
       };
+      el.ondblclick = (e) => {
+        e.preventDefault();
+        selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), parseInt(el.dataset.day));
+        showAddWorkoutModal();
+      };
     });
   }
 
@@ -189,6 +194,9 @@ export async function render(container, params) {
     <div class="page">
       <h1 class="page-title">History</h1>
       <div id="calendar-view"></div>
+      <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:8px;">
+        Double-tap a day to quickly add a workout
+      </div>
       <div id="day-detail"></div>
     </div>
   `;

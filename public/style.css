@@ -237,6 +237,39 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 .ex-option:hover, .ex-option:active { background: var(--surface2); }
 
+/* CALENDAR */
+.calendar-header h2 { font-size: 18px; font-weight: 700; }
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.1s;
+}
+.calendar-day:active { background: var(--surface2); }
+.calendar-day.selected { background: var(--accent); color: white; }
+.calendar-day.today { border: 1px solid var(--accent); color: var(--accent); }
+.calendar-day.has-workout::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.calendar-day.selected.has-workout::after { background: white; }
+
 /* MODAL */
 .modal-backdrop {
   position: fixed;
