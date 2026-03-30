@@ -14,26 +14,21 @@
 </head>
 <body>
   <div id="app"></div>
-  <nav id="bottom-nav">
+  <nav id="bottom-nav" style="display:none;">
     <button class="nav-btn" data-route="today">
-      <span class="nav-icon">🏠</span>
       <span class="nav-label">Today</span>
     </button>
-    <button class="nav-btn" data-route="workout">
-      <span class="nav-icon">💪</span>
-      <span class="nav-label">Workout</span>
-    </button>
     <button class="nav-btn" data-route="schedule">
-      <span class="nav-icon">📅</span>
       <span class="nav-label">Schedule</span>
     </button>
     <button class="nav-btn" data-route="templates">
-      <span class="nav-icon">📋</span>
       <span class="nav-label">Templates</span>
     </button>
     <button class="nav-btn" data-route="history">
-      <span class="nav-icon">📊</span>
       <span class="nav-label">History</span>
+    </button>
+    <button class="nav-btn" id="logout-btn" onclick="window.__logout()">
+      <span class="nav-label">Sign Out</span>
     </button>
   </nav>
   <script type="module" src="/js/app.js"></script>

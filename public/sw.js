@@ -1,13 +1,15 @@
 'use strict';
 
-const CACHE = 'gym-v1';
+const CACHE = 'gym-v6';
 const STATIC = [
   '/', '/index.html', '/style.css', '/manifest.json',
   '/icons/icon-192.png', '/icons/icon-512.png',
-  '/js/app.js', '/js/api.js',
+  '/js/app.js', '/js/api.js', '/js/insforge.js',
   '/js/views/today.js', '/js/views/workout.js',
   '/js/views/schedule.js', '/js/views/templates.js',
   '/js/views/exercises.js', '/js/views/history.js',
+  '/js/views/login.js',
+  '/js/vendor/insforge-sdk-bundle.mjs',
 ];
 
 self.addEventListener('install', e => {
@@ -30,8 +32,14 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
 
-  // Network-first for API (read-only offline fallback)
-  if (url.pathname.startsWith('/api/')) {
+  // Network-only for OAuth callbacks and API calls
+  if (url.searchParams.has('insforge_code') || url.pathname.startsWith('/api/')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
+  // Network-first for JS files so updates deploy immediately
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.mjs')) {
     e.respondWith(
       fetch(e.request)
         .then(r => {
@@ -43,7 +51,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first for everything else
+  // Cache-first for everything else (static assets)
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;

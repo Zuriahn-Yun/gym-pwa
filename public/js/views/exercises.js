@@ -4,19 +4,24 @@ export async function render(container, params) {
   container.innerHTML = '<div class="loading">Loading...</div>';
   let exercises = await api.getExercises();
 
+  const typeLabel = { strength: 'Strength', swimming: 'Swimming', running: 'Running' };
   const listHtml = (list) => list.length === 0
-    ? '<div class="empty"><div class="empty-icon">🏋️</div><div class="empty-text">No exercises</div></div>'
+    ? '<div class="empty"><div class="empty-text">No exercises</div></div>'
     : list.map(ex => `
         <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
           <div>
             <div style="font-weight:600;">${ex.name}</div>
-            ${ex.muscle_group ? `<span class="tag">${ex.muscle_group}</span>` : ''}
+            <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">
+              ${ex.muscle_group ? `<span class="tag">${ex.muscle_group}</span>` : ''}
+              ${ex.exercise_type && ex.exercise_type !== 'strength' ? `<span class="tag" style="background:rgba(232,93,4,0.15);color:var(--accent);">${typeLabel[ex.exercise_type] || ex.exercise_type}</span>` : ''}
+            </div>
           </div>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-ghost btn-sm edit-btn"
               data-id="${ex.id}"
               data-name="${ex.name.replace(/"/g, '&quot;')}"
               data-muscle="${(ex.muscle_group || '').replace(/"/g, '&quot;')}"
+              data-type="${ex.exercise_type || 'strength'}"
               data-notes="${(ex.notes || '').replace(/"/g, '&quot;')}">Edit</button>
             <button class="btn btn-danger btn-sm del-btn"
               data-id="${ex.id}"
@@ -50,6 +55,13 @@ export async function render(container, params) {
       <div class="input-group"><label class="input-label">Name *</label>
         <input class="input" id="ex-name" placeholder="e.g. Barbell Bench Press" value="${existing ? existing.name : ''}">
       </div>
+      <div class="input-group"><label class="input-label">Type</label>
+        <select class="input" id="ex-type">
+          <option value="strength" ${(!existing || existing.type === 'strength') ? 'selected' : ''}>Strength (weight + reps)</option>
+          <option value="swimming" ${existing?.type === 'swimming' ? 'selected' : ''}>Swimming (yards + time)</option>
+          <option value="running" ${existing?.type === 'running' ? 'selected' : ''}>Running (distance + time)</option>
+        </select>
+      </div>
       <div class="input-group"><label class="input-label">Muscle Group</label>
         <input class="input" id="ex-muscle" placeholder="e.g. chest" value="${existing ? existing.muscle : ''}">
       </div>
@@ -68,11 +80,16 @@ export async function render(container, params) {
       if (!name) { alert('Name is required'); return; }
       const muscle = backdrop.querySelector('#ex-muscle').value.trim();
       const notes = backdrop.querySelector('#ex-notes').value.trim();
-      if (existing) await api.updateExercise(existing.id, { name, muscle_group: muscle, notes });
-      else await api.createExercise(name, muscle, notes);
-      exercises = await api.getExercises();
-      listEl.innerHTML = listHtml(exercises);
-      backdrop.remove();
+      const exercise_type = backdrop.querySelector('#ex-type').value;
+      try {
+        if (existing) await api.updateExercise(existing.id, { name, muscle_group: muscle, notes, exercise_type });
+        else await api.createExercise(name, muscle, notes, exercise_type);
+        exercises = await api.getExercises();
+        listEl.innerHTML = listHtml(exercises);
+        backdrop.remove();
+      } catch (err) {
+        alert('Failed to save: ' + err.message);
+      }
     });
   }
 
@@ -81,7 +98,7 @@ export async function render(container, params) {
   listEl.addEventListener('click', async (e) => {
     if (e.target.closest('.edit-btn')) {
       const b = e.target.closest('.edit-btn');
-      showModal({ id: parseInt(b.dataset.id), name: b.dataset.name, muscle: b.dataset.muscle, notes: b.dataset.notes });
+      showModal({ id: parseInt(b.dataset.id), name: b.dataset.name, muscle: b.dataset.muscle, notes: b.dataset.notes, type: b.dataset.type });
     } else if (e.target.closest('.del-btn')) {
       const b = e.target.closest('.del-btn');
       if (!confirm(`Delete "${b.dataset.name}"?`)) return;

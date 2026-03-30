@@ -8,6 +8,8 @@ const path = require('path');
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/js/vendor/insforge-sdk', express.static(path.join(__dirname, 'node_modules/@insforge/sdk/dist')));
+app.use('/js/vendor/insforge-shared-schemas', express.static(path.join(__dirname, 'node_modules/@insforge/shared-schemas/dist')));
+app.use('/js/vendor/postgrest-js', express.static(path.join(__dirname, 'node_modules/@supabase/postgrest-js/dist/esm')));
 
 // SPA fallback
 app.get('*', (req, res) => {

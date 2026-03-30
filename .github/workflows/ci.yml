@@ -1,26 +1,23 @@
-name: CI
+name: CI/CD
 
 on:
   push:
     branches: ['**']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   lint-and-build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Install dependencies
         run: npm install
-
       - name: Syntax check all JS files
         run: |
           echo "Checking JavaScript syntax..."
@@ -40,3 +37,52 @@ jobs:
             exit 1
           fi
           echo "All syntax checks passed!"
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: lint-and-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Build SDK bundle
+        run: npm run build
+      - name: Start server and run smoke test
+        run: |
+          npm start &
+          # Wait for server to start
+          for i in {1..10}; do
+            curl -s http://localhost:3000 > /dev/null && break
+            echo "Waiting for server..."
+            sleep 2
+          done
+          node screenshot-test.js
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Build SDK bundle
+        run: npm run build
+      - name: Deploy to InsForge
+        env:
+          INSFORGE_EMAIL: ${{ secrets.INSFORGE_EMAIL }}
+          INSFORGE_PASSWORD: ${{ secrets.INSFORGE_PASSWORD }}
+          INSFORGE_PROJECT_ID: "664da831-76f7-4ccb-b814-515b179e3725"
+          INSFORGE_ORG_ID: "dacc7e8b-bcd1-4792-a965-18512c629f70"
+        run: |
+          npx @insforge/cli login --email -y
+          npx @insforge/cli link --project-id $INSFORGE_PROJECT_ID --org-id $INSFORGE_ORG_ID -y
+          npx @insforge/cli deployments deploy public/

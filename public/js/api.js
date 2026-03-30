@@ -1,6 +1,23 @@
 import { insforge } from './insforge.js';
 const db = insforge.database;
 
+// ===== PROFILE =====
+export async function upsertProfile(user) {
+  const { error } = await db.from('profiles').upsert({
+    id: user.id,
+    email: user.email,
+    full_name: user.user_metadata?.full_name || null,
+    avatar_url: user.user_metadata?.avatar_url || null,
+  });
+  if (error) console.warn('Profile upsert:', error.message);
+}
+
+export async function getProfile(userId) {
+  const { data, error } = await db.from('profiles').select().eq('id', userId).single();
+  if (error) return null;
+  return data;
+}
+
 // ===== SCHEDULE =====
 export async function getSchedule() {
   const { data, error } = await db.from('schedule').select('*, templates(id, name)').order('day_of_week');
@@ -115,8 +132,8 @@ export async function getExercise(id) {
   return data;
 }
 
-export async function createExercise(name, muscle_group, notes) {
-  const { data, error } = await db.from('exercises').insert([{ name, muscle_group, notes }]).select().single();
+export async function createExercise(name, muscle_group, notes, exercise_type = 'strength') {
+  const { data, error } = await db.from('exercises').insert([{ name, muscle_group, notes, exercise_type }]).select().single();
   if (error) throw new Error(error.message);
   return data;
 }
@@ -171,9 +188,11 @@ export async function getSession(id) {
   return data;
 }
 
-export async function createSession(template_id) {
+export async function createSession(template_id, user_id) {
+  if (!user_id) throw new Error('User ID is required to create a session');
+  const row = { template_id: template_id || null, user_id: user_id };
   const { data: session, error } = await db.from('sessions')
-    .insert([{ template_id: template_id || null }])
+    .insert([row])
     .select()
     .single();
   if (error) throw new Error(error.message);
@@ -191,12 +210,13 @@ export async function createSession(template_id) {
         position: te.position
       }));
       const { data: inserted } = await db.from('session_exercises').insert(sessionExercises).select();
+      if (!inserted || !inserted.length) return session;
 
       // Create default sets for each exercise
       const setRows = [];
-      for (let i = 0; i < tmplExercises.length; i++) {
-        const te = tmplExercises[i];
-        const se = inserted[i];
+      for (const te of tmplExercises) {
+        const se = inserted.find(r => r.exercise_id === te.exercise_id);
+        if (!se) continue;
         for (let s = 1; s <= (te.default_sets || 3); s++) {
           setRows.push({
             session_exercise_id: se.id,
@@ -228,6 +248,11 @@ export async function deleteSession(id) {
   if (error) throw new Error(error.message);
 }
 
+export async function removeExerciseFromSession(sessionExerciseId) {
+  const { error } = await db.from('session_exercises').delete().eq('id', sessionExerciseId);
+  if (error) throw new Error(error.message);
+}
+
 export async function addExerciseToSession(sessionId, exercise_id, position = 0) {
   const { data: se, error } = await db.from('session_exercises')
     .insert([{ session_id: sessionId, exercise_id, position }])
@@ -238,11 +263,11 @@ export async function addExerciseToSession(sessionId, exercise_id, position = 0)
 }
 
 // ===== SETS =====
-export async function addSet(sessionExerciseId, set_number, weight = 0, reps = 0) {
-  const { data, error } = await db.from('sets')
-    .insert([{ session_exercise_id: sessionExerciseId, set_number, weight, reps, completed: false }])
-    .select()
-    .single();
+export async function addSet(sessionExerciseId, set_number, weight = 0, reps = 0, distance = null, duration = null) {
+  const row = { session_exercise_id: sessionExerciseId, set_number, weight, reps, completed: false };
+  if (distance != null) row.distance = distance;
+  if (duration != null) row.duration = duration;
+  const { data, error } = await db.from('sets').insert([row]).select().single();
   if (error) throw new Error(error.message);
   return data;
 }

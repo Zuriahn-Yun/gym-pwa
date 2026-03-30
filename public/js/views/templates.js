@@ -17,7 +17,7 @@ async function renderList(container) {
       <button class="btn btn-primary btn-sm" id="new-tmpl">+ New</button>
     </div>
     ${templates.length === 0
-      ? '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No templates yet.<br>Tap + New to create one.</div></div>'
+      ? '<div class="empty"><div class="empty-text">No templates yet.<br>Tap + New to create one.</div></div>'
       : templates.map(t => `
         <div class="card" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" data-tid="${t.id}">
           <div style="font-size:17px;font-weight:600;">${t.name}</div>
