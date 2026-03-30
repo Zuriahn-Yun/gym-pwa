@@ -253,6 +253,7 @@ input[type="number"] { -moz-appearance: textfield; }
   border-top: 1px solid var(--border);
   background: var(--border);
   gap: 1px;
+  width: 100%;
 }
 .calendar-weekday {
   background: var(--surface2);
