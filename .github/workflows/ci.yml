@@ -87,6 +87,11 @@ jobs:
           INSFORGE_PROJECT_ID: "664da831-76f7-4ccb-b814-515b179e3725"
           INSFORGE_ORG_ID: "dacc7e8b-bcd1-4792-a965-18512c629f70"
         run: |
+          if [ -z "$INSFORGE_EMAIL" ] || [ -z "$INSFORGE_PASSWORD" ]; then
+            echo "Error: INSFORGE_EMAIL and INSFORGE_PASSWORD secrets must be set in GitHub repository settings."
+            exit 1
+          fi
           npx @insforge/cli login --email -y
           npx @insforge/cli link --project-id $INSFORGE_PROJECT_ID --org-id $INSFORGE_ORG_ID -y
           npx @insforge/cli deployments deploy public/ --yes
+          npx @insforge/cli functions deploy strava-token-exchange --yes
