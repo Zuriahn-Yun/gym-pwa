@@ -46,7 +46,9 @@ async function navigate() {
         console.error('Auth error:', err);
         authError = err;
         if (location.search.includes('insforge_code')) {
-          location.search = ''; 
+          const url = new URL(window.location.href);
+          url.searchParams.delete('insforge_code');
+          window.history.replaceState({}, '', url.pathname + url.hash);
           return { data: { user: null }, error: err };
         }
         return { data: { user: null }, error: null };

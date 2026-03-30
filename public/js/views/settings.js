@@ -97,7 +97,7 @@ export async function render(container, params) {
     if (connectBtn) {
       connectBtn.onclick = () => {
         const clientId = '146440'; 
-        const redirectUri = 'https://ifu5d87t.insforge.site';
+        const redirectUri = 'https://ifu5d87t.insforge.site/';
         window.location.href = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read,activity:read_all&state=strava_settings`;
       };
     }
