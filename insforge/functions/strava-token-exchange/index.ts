@@ -48,6 +48,7 @@ export default async function handler(req: Request) {
     const insforge = createClient({
       baseUrl: INSFORGE_URL!,
       anonKey: INSFORGE_SERVICE_ROLE_KEY || INSFORGE_ANON_KEY!,
+      auth: { persistSession: false }
     })
 
     const { error } = await insforge.database
