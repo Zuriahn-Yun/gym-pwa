@@ -117,15 +117,18 @@ export async function render(container, params) {
       html += `<div class="empty" style="padding:20px;"><div class="empty-text">No workouts logged</div></div>`;
     } else {
       html += daySessions.map(s => `
-        <div class="card session-card" data-sid="${s.id}" style="margin-bottom:12px; cursor:pointer;">
+        <div class="card session-card" data-sid="${s.id}" style="margin-bottom:12px;">
           <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div>
+            <div style="cursor:pointer; flex:1;" class="session-info">
               <div class="card-title" style="margin:0;">${s.templates?.name ?? s.template_name ?? 'Custom Workout'}</div>
               <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
                 ${new Date(s.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
-            <span style="color:var(--text-muted);">›</span>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn btn-danger btn-sm delete-session-btn" data-sid="${s.id}">Delete</button>
+              <span style="color:var(--text-muted); cursor:pointer;" class="session-info">›</span>
+            </div>
           </div>
         </div>
       `).join('');
@@ -135,8 +138,29 @@ export async function render(container, params) {
     detailContainer.innerHTML = html;
 
     container.querySelector('#add-workout-btn').onclick = () => showAddWorkoutModal();
-    container.querySelectorAll('.session-card[data-sid]').forEach(el => {
-      el.onclick = () => { location.hash = '#/history/' + el.dataset.sid; };
+    
+    container.querySelectorAll('.session-info').forEach(el => {
+      const card = el.closest('.session-card');
+      el.onclick = () => { location.hash = '#/history/' + card.dataset.sid; };
+    });
+
+    container.querySelectorAll('.delete-session-btn').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete this workout?')) return;
+        const sid = parseInt(btn.dataset.sid);
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          await api.deleteSession(sid);
+          // Refresh data
+          await loadMonthData();
+        } catch (err) {
+          alert('Failed to delete: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = 'Delete';
+        }
+      };
     });
   }
 

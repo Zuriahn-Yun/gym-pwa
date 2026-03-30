@@ -3,19 +3,41 @@ const db = insforge.database;
 
 // ===== PROFILE =====
 export async function upsertProfile(user) {
-  const { error } = await db.from('profiles').upsert({
-    id: user.id,
-    email: user.email,
-    full_name: user.user_metadata?.full_name || null,
-    avatar_url: user.user_metadata?.avatar_url || null,
-  });
-  if (error) console.warn('Profile upsert:', error.message);
+  const { data: existing } = await db.from('profiles').select('id').eq('id', user.id).single();
+  
+  if (existing) {
+    // Only update basic info, don't overwrite tokens
+    const { error } = await db.from('profiles').update({
+      email: user.email,
+      full_name: user.user_metadata?.full_name || null,
+      avatar_url: user.user_metadata?.avatar_url || null,
+    }).eq('id', user.id);
+    if (error) console.warn('Profile update:', error.message);
+  } else {
+    const { error } = await db.from('profiles').insert({
+      id: user.id,
+      email: user.email,
+      full_name: user.user_metadata?.full_name || null,
+      avatar_url: user.user_metadata?.avatar_url || null,
+    });
+    if (error) console.warn('Profile insert:', error.message);
+  }
 }
 
 export async function getProfile(userId) {
   const { data, error } = await db.from('profiles').select().eq('id', userId).single();
   if (error) return null;
   return data;
+}
+
+export async function disconnectStrava(userId) {
+  const { error } = await db.from('profiles').update({
+    strava_access_token: null,
+    strava_refresh_token: null,
+    strava_expires_at: null,
+    strava_athlete_id: null
+  }).eq('id', userId);
+  if (error) throw new Error(error.message);
 }
 
 // ===== SCHEDULE =====

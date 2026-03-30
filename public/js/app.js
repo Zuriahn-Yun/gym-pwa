@@ -6,6 +6,7 @@ import { render as renderTemplates } from './views/templates.js';
 import { render as renderExercises } from './views/exercises.js';
 import { render as renderHistory } from './views/history.js';
 import { render as renderLogin } from './views/login.js';
+import { render as renderProfile } from './views/profile.js';
 
 const views = {
   today: renderToday,
@@ -13,6 +14,7 @@ const views = {
   templates: renderTemplates,
   exercises: renderExercises,
   history: renderHistory,
+  profile: renderProfile,
 };
 
 const appEl = document.getElementById('app');
