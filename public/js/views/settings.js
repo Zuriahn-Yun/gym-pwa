@@ -105,7 +105,7 @@ export async function render(container, params) {
       connectBtn.onclick = () => {
         const clientId = '218063'; 
         const redirectUri = window.location.origin + '/';
-        window.location.href = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read,activity:read_all&state=strava_settings`;
+        window.location.href = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read,activity:read_all&state=strava_settings&approval_prompt=force`;
       };
     }
 
