@@ -39,13 +39,19 @@ export async function render(container, params) {
         .order('started_at', { ascending: false });
       
       if (error) throw error;
-      sessions = data;
+      sessions = data || []; // Ensure sessions is always an array
 
       renderCalendar();
       renderDayDetail();
     } catch (err) {
       console.error('Failed to load month data:', err);
-      calendarContainer.innerHTML = `<div class="empty"><div class="empty-text">Error loading data</div></div>`;
+      // Don't crash the whole view, just show empty
+      sessions = [];
+      renderCalendar();
+      renderDayDetail();
+      // Show a small non-blocking toast or error message in detail area
+      const detailContainer = container.querySelector('#day-detail');
+      if (detailContainer) detailContainer.innerHTML = `<div class="empty"><div class="empty-text">Connection error</div><div class="empty-sub">Check your internet or login status</div></div>`;
     }
   }
 

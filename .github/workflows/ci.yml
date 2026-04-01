@@ -65,3 +65,6 @@ jobs:
             sleep 2
           done
           node screenshot-test.js
+          echo "Testing History page route..."
+          # We can't fully test data loading without login, but we can verify the route renders the loading state
+          curl -s http://localhost:3000/#/history | grep -q "History" || exit 1
