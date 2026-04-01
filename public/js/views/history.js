@@ -35,19 +35,29 @@ export async function render(container, params) {
         throw new Error('Database client not initialized');
       }
 
-      // Fetch sessions with nested sets for summaries
+      // Step 1: Fetch core sessions
       const { data, error } = await api.insforge.database.from('sessions')
-        .select('*, templates(name), session_exercises(id, sets(distance, duration))')
+        .select('*, templates(name)')
         .gte('started_at', startOfMonth)
         .lte('started_at', endOfMonth)
         .order('started_at', { ascending: false });
       
-      if (error) {
-        console.error('Database query error:', error);
-        throw new Error(error.message || 'Database query failed');
-      }
-      
+      if (error) throw error;
       sessions = data || [];
+
+      // Step 2: Lazy load summaries if any Strava activities exist
+      const stravaIds = sessions.filter(s => s.strava_id).map(s => s.id);
+      if (stravaIds.length > 0) {
+        const { data: summaries } = await api.insforge.database.from('session_exercises')
+          .select('session_id, sets(distance, duration)')
+          .in('session_id', stravaIds);
+        
+        if (summaries) {
+          sessions.forEach(s => {
+            if (s.strava_id) s.session_exercises = summaries.filter(sum => sum.session_id === s.id);
+          });
+        }
+      }
 
       renderCalendar();
       renderDayDetail();
@@ -61,11 +71,11 @@ export async function render(container, params) {
         detailContainer.innerHTML = `
           <div class="empty">
             <div class="empty-text">Loading Error</div>
-            <div class="empty-sub" style="color:#ef4444; font-family:monospace; margin-top:8px;">
-              ${err.message}
+            <div class="empty-sub" style="color:#888; margin-top:8px;">
+              ${err.message || 'Connection lost'}
             </div>
             <button class="btn btn-ghost btn-sm" onclick="location.reload()" style="margin-top:16px;">
-              Retry Connection
+              Retry
             </button>
           </div>
         `;
