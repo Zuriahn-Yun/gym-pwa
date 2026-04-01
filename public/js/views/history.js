@@ -21,28 +21,31 @@ export async function render(container, params) {
   }
 
   async function loadMonthData() {
+    // Only load if we are in the main view (not detail)
+    const calendarContainer = container.querySelector('#calendar-view');
+    if (!calendarContainer) return;
+
+    calendarContainer.innerHTML = '<div class="loading">Loading calendar...</div>';
+    
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
     const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
     
     try {
-      // Fetch sessions with nested sets for summaries
-      sessions = await api.getSessionsByDateRange(startOfMonth, endOfMonth);
-      
-      // For Strava sessions, we want to fetch their sets to show distance/duration
-      // We'll fetch them lazily in renderDayDetail or just join them in api.js
-      // Let's modify the api call slightly to get the summary data we need
+      // Fetch sessions with nested sets for summaries using the SDK
       const { data, error } = await api.insforge.database.from('sessions')
         .select('*, templates(name), session_exercises(id, sets(distance, duration))')
         .gte('started_at', startOfMonth)
         .lte('started_at', endOfMonth)
         .order('started_at', { ascending: false });
       
-      if (!error) sessions = data;
+      if (error) throw error;
+      sessions = data;
 
       renderCalendar();
       renderDayDetail();
     } catch (err) {
       console.error('Failed to load month data:', err);
+      calendarContainer.innerHTML = `<div class="empty"><div class="empty-text">Error loading data</div></div>`;
     }
   }
 
