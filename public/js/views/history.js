@@ -31,27 +31,45 @@ export async function render(container, params) {
     const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
     
     try {
-      // Fetch sessions with nested sets for summaries using the SDK
+      if (!api.insforge || !api.insforge.database) {
+        throw new Error('Database client not initialized');
+      }
+
+      // Fetch sessions with nested sets for summaries
       const { data, error } = await api.insforge.database.from('sessions')
         .select('*, templates(name), session_exercises(id, sets(distance, duration))')
         .gte('started_at', startOfMonth)
         .lte('started_at', endOfMonth)
         .order('started_at', { ascending: false });
       
-      if (error) throw error;
-      sessions = data || []; // Ensure sessions is always an array
+      if (error) {
+        console.error('Database query error:', error);
+        throw new Error(error.message || 'Database query failed');
+      }
+      
+      sessions = data || [];
 
       renderCalendar();
       renderDayDetail();
     } catch (err) {
       console.error('Failed to load month data:', err);
-      // Don't crash the whole view, just show empty
       sessions = [];
       renderCalendar();
-      renderDayDetail();
-      // Show a small non-blocking toast or error message in detail area
+      
       const detailContainer = container.querySelector('#day-detail');
-      if (detailContainer) detailContainer.innerHTML = `<div class="empty"><div class="empty-text">Connection error</div><div class="empty-sub">Check your internet or login status</div></div>`;
+      if (detailContainer) {
+        detailContainer.innerHTML = `
+          <div class="empty">
+            <div class="empty-text">Loading Error</div>
+            <div class="empty-sub" style="color:#ef4444; font-family:monospace; margin-top:8px;">
+              ${err.message}
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="location.reload()" style="margin-top:16px;">
+              Retry Connection
+            </button>
+          </div>
+        `;
+      }
     }
   }
 
