@@ -2,9 +2,15 @@ import * as api from '../api.js';
 
 export async function render(container, params) {
   const userId = params?.userId ?? null;
+  const sessionId = params?.sessionId ?? null;
   let currentDate = new Date();
   let selectedDate = new Date();
   let sessions = [];
+
+  // If sessionId is provided, render the detail view instead of the calendar
+  if (sessionId) {
+    return renderSessionDetail(container, sessionId);
+  }
 
   function getDaysInMonth(year, month) {
     return new Date(year, month + 1, 0).getDate();
@@ -19,7 +25,20 @@ export async function render(container, params) {
     const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
     
     try {
+      // Fetch sessions with nested sets for summaries
       sessions = await api.getSessionsByDateRange(startOfMonth, endOfMonth);
+      
+      // For Strava sessions, we want to fetch their sets to show distance/duration
+      // We'll fetch them lazily in renderDayDetail or just join them in api.js
+      // Let's modify the api call slightly to get the summary data we need
+      const { data, error } = await api.insforge.database.from('sessions')
+        .select('*, templates(name), session_exercises(id, sets(distance, duration))')
+        .gte('started_at', startOfMonth)
+        .lte('started_at', endOfMonth)
+        .order('started_at', { ascending: false });
+      
+      if (!error) sessions = data;
+
       renderCalendar();
       renderDayDetail();
     } catch (err) {
@@ -124,22 +143,36 @@ export async function render(container, params) {
     if (daySessions.length === 0) {
       html += `<div class="empty" style="padding:20px;"><div class="empty-text">No workouts logged</div></div>`;
     } else {
-      html += daySessions.map(s => `
-        <div class="card session-card" data-sid="${s.id}" style="margin-bottom:12px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div style="cursor:pointer; flex:1;" class="session-info">
-              <div class="card-title" style="margin:0;">${s.templates?.name ?? s.template_name ?? 'Custom Workout'}</div>
-              <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
-                ${new Date(s.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      html += daySessions.map(s => {
+        // Calculate Strava summary if applicable
+        let summary = '';
+        if (s.strava_id && s.session_exercises?.[0]?.sets?.[0]) {
+          const set = s.session_exercises[0].sets[0];
+          const dist = set.distance ? `${set.distance.toFixed(2)} mi` : '';
+          const dur = set.duration ? `${Math.floor(set.duration / 60)}m ${set.duration % 60}s` : '';
+          summary = `<div style="font-size:12px; color:var(--accent); font-weight:600; margin-top:4px;">
+            ${dist}${dist && dur ? ' • ' : ''}${dur}
+          </div>`;
+        }
+
+        return `
+          <div class="card session-card" data-sid="${s.id}" style="margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="cursor:pointer; flex:1;" class="session-info">
+                <div class="card-title" style="margin:0;">${s.templates?.name ?? s.template_name ?? 'Custom Workout'}</div>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                  ${new Date(s.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                ${summary}
+              </div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button class="btn btn-danger btn-sm delete-session-btn" data-sid="${s.id}">Delete</button>
+                <span style="color:var(--text-muted); cursor:pointer;" class="session-info">›</span>
               </div>
             </div>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <button class="btn btn-danger btn-sm delete-session-btn" data-sid="${s.id}">Delete</button>
-              <span style="color:var(--text-muted); cursor:pointer;" class="session-info">›</span>
-            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     html += `</div>`;
@@ -161,7 +194,6 @@ export async function render(container, params) {
         btn.textContent = '...';
         try {
           await api.deleteSession(sid);
-          // Refresh data
           await loadMonthData();
         } catch (err) {
           alert('Failed to delete: ' + err.message);
@@ -170,6 +202,85 @@ export async function render(container, params) {
         }
       };
     });
+  }
+
+  async function renderSessionDetail(container, id) {
+    container.innerHTML = '<div class="loading">Loading details...</div>';
+    try {
+      const s = await api.getSession(id);
+      if (!s) throw new Error('Session not found');
+
+      const dateStr = new Date(s.started_at).toLocaleDateString('en-US', { 
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+      });
+      const timeStr = new Date(s.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      let html = `
+        <div class="page">
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+            <button class="btn btn-ghost btn-sm" onclick="location.hash = '#/history'" style="padding:0; min-width:32px; font-size:24px;">‹</button>
+            <h1 class="page-title" style="margin:0;">Workout Detail</h1>
+          </div>
+
+          <div class="card" style="margin-bottom:24px;">
+            <div style="font-size:20px; font-weight:700; margin-bottom:4px;">${s.templates?.name ?? s.template_name ?? 'Custom Workout'}</div>
+            <div style="font-size:14px; color:var(--text-muted);">${dateStr} at ${timeStr}</div>
+          </div>
+
+          ${s.session_exercises.length === 0 
+            ? '<div class="empty">No exercises recorded</div>'
+            : s.session_exercises.map(se => `
+              <div class="card" style="margin-bottom:16px; padding:16px;">
+                <div style="font-weight:700; font-size:16px; margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  ${se.exercises?.name}
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  ${se.sets.map(set => {
+                    let detail = '';
+                    if (set.distance != null || set.duration != null) {
+                      const dist = set.distance != null ? `${set.distance.toFixed(2)} mi` : '';
+                      const dur = set.duration != null ? `${Math.floor(set.duration / 60)}m ${set.duration % 60}s` : '';
+                      detail = `${dist}${dist && dur ? ' • ' : ''}${dur}`;
+                    } else {
+                      detail = `${set.weight} lbs × ${set.reps} reps`;
+                    }
+                    return `
+                      <div style="display:flex; justify-content:space-between; align-items:center; font-size:14px;">
+                        <span style="color:var(--text-muted);">Set ${set.set_number}</span>
+                        <span style="font-weight:500;">${detail}</span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `).join('')}
+          
+          <div style="margin-top:32px;">
+            <button class="btn btn-danger btn-full" id="delete-detail-btn">Delete Workout</button>
+          </div>
+        </div>
+      `;
+      container.innerHTML = html;
+
+      container.querySelector('#delete-detail-btn').onclick = async () => {
+        if (!confirm('Permanently delete this workout history?')) return;
+        try {
+          await api.deleteSession(id);
+          location.hash = '#/history';
+        } catch (err) {
+          alert('Failed to delete: ' + err.message);
+        }
+      };
+
+    } catch (err) {
+      container.innerHTML = `<div class="page">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+          <button class="btn btn-ghost btn-sm" onclick="location.hash = '#/history'" style="padding:0; min-width:32px; font-size:24px;">‹</button>
+          <h1 class="page-title" style="margin:0;">Error</h1>
+        </div>
+        <div class="empty"><div class="empty-text">${err.message}</div></div>
+      </div>`;
+    }
   }
 
   async function showAddWorkoutModal() {
@@ -202,12 +313,10 @@ export async function render(container, params) {
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Adding...';
         try {
-          // Set the time to noon to avoid timezone shift issues during initial creation
           const dateWithTime = new Date(selectedDate);
           dateWithTime.setHours(12, 0, 0, 0);
           const s = await api.createSession(templateId || null, userId, dateWithTime.toISOString());
           modal.remove();
-          // If it's today, we might want to navigate to the workout view immediately
           if (selectedDate.toDateString() === new Date().toDateString()) {
             location.hash = '#/workout/' + s.id;
           } else {

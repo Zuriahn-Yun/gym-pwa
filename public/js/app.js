@@ -44,6 +44,10 @@ async function navigate() {
     if (!currentUser || location.search.includes('insforge_code')) {
       const { data, error } = await insforge.auth.getCurrentUser().catch((err) => {
         console.error('Auth error:', err);
+        // "No refresh token provided" is normal when not logged in
+        if (err.message?.includes('refresh token')) {
+          return { data: { user: null }, error: null };
+        }
         authError = err;
         if (location.search.includes('insforge_code')) {
           const url = new URL(window.location.href);
@@ -54,7 +58,7 @@ async function navigate() {
         return { data: { user: null }, error: null };
       });
       currentUser = data?.user ?? null;
-      if (error) authError = error;
+      if (error && !error.message?.includes('refresh token')) authError = error;
     }
 
     if (!currentUser) {
