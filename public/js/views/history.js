@@ -8,7 +8,7 @@ const state = {
 };
 
 export async function render(container, params) {
-  const userId = params?.userId ?? null;
+  const userId = params?.userId || api.insforge.auth.tokenManager.getUser()?.id || null;
   const sessionId = params?.sessionId ?? null;
 
   // If sessionId is provided, render the detail view instead of the calendar

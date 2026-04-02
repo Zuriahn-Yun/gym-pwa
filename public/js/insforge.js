@@ -48,6 +48,11 @@ export const insforge = createClient({
   debug: true
 });
 
+// Immediately expose database reference if not already present
+if (!insforge.database) {
+  insforge.database = insforge.from ? insforge : null;
+}
+
 // Deep override to ensure all services use the same persisting manager
 insforge.tokenManager = customTokenManager;
 insforge.auth.tokenManager = customTokenManager;

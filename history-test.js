@@ -25,15 +25,19 @@ async function testHistory() {
   await new Promise(r => setTimeout(r, 2000));
 
   // 3. Go to Feb (click prev twice)
+  console.log('Waiting for calendar navigation buttons...');
+  await page.waitForSelector('#prev-month', { timeout: 15000 });
+  
   console.log('Clicking Prev Month (to March)...');
   await page.click('#prev-month');
-  await new Promise(r => setTimeout(r, 2000));
+  await new Promise(r => setTimeout(r, 3000));
   
+  await page.waitForSelector('#prev-month');
   console.log('Clicking Prev Month (to February)...');
   await page.click('#prev-month');
   
-  // Wait for data to load for Feb
-  await new Promise(r => setTimeout(r, 5000));
+  // Wait for final data load
+  await new Promise(r => setTimeout(r, 10000));
 
   // 4. Verify results
   const results = await page.evaluate(() => {
