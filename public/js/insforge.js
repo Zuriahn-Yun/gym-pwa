@@ -40,26 +40,27 @@ class LocalTokenManager extends TokenManager {
 
 const customTokenManager = new LocalTokenManager();
 
-// Create client with default internal manager
-export const insforge = createClient({
+// Initialize the client
+const client = createClient({
   baseUrl: 'https://ifu5d87t.us-west.insforge.app',
   functionsUrl: 'https://ifu5d87t.functions.insforge.app',
   anonKey: 'ik_1a53b3d9989f708e4ee782d35f97d71a',
   debug: true
 });
 
-// Immediately expose database reference if not already present
-if (!insforge.database) {
-  insforge.database = insforge.from ? insforge : null;
-}
-
 // Deep override to ensure all services use the same persisting manager
-insforge.tokenManager = customTokenManager;
-insforge.auth.tokenManager = customTokenManager;
-insforge.http.tokenManager = customTokenManager;
+client.tokenManager = customTokenManager;
+client.auth.tokenManager = customTokenManager;
+client.http.tokenManager = customTokenManager;
 
-// Also ensure the auth service's internal http reference uses it
-if (insforge.auth.http) {
-  insforge.auth.http.tokenManager = customTokenManager;
+if (client.auth.http) {
+  client.auth.http.tokenManager = customTokenManager;
 }
 
+// Immediately ensure database is aliased if needed
+if (!client.database) {
+  client.database = client.from ? client : null;
+}
+
+// Export the stable reference
+export const insforge = client;
