@@ -36,9 +36,10 @@ export async function render(container, params) {
         throw new Error('Database client not initialized');
       }
 
-      // Step 1: Fetch core sessions
+      // Explicitly include user_id in query to ensure RLS doesn't filter incorrectly
       const { data, error } = await api.insforge.database.from('sessions')
         .select('*, templates(name)')
+        .eq('user_id', userId)
         .gte('started_at', startOfMonth)
         .lte('started_at', endOfMonth)
         .order('started_at', { ascending: false });
@@ -62,6 +63,11 @@ export async function render(container, params) {
 
       renderCalendar();
       renderDayDetail();
+      
+      const debugEl = container.querySelector('#history-debug');
+      if (debugEl) {
+        debugEl.textContent = `User: ${userId} | Month: ${currentDate.getMonth() + 1}/${currentDate.getFullYear()} | Sessions: ${sessions.length}`;
+      }
     } catch (err) {
       console.error('Failed to load month data:', err);
       sessions = [];
@@ -382,6 +388,9 @@ export async function render(container, params) {
         Double-tap a day to quickly add a workout
       </div>
       <div id="day-detail"></div>
+      <div id="history-debug" style="font-size:9px; color:var(--surface2); text-align:center; margin-top:40px; border-top:1px solid var(--surface2); padding-top:8px;">
+        User: ${userId} | Month: ${currentDate.getMonth() + 1}/${currentDate.getFullYear()} | Sessions: Loading...
+      </div>
     </div>
   `;
 
