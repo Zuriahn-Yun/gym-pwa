@@ -289,9 +289,28 @@ export async function render(container, params) {
               </div>
             </div>
           `).join('')}
-          <div style="margin-top:32px;"><button class="btn btn-danger btn-full" id="delete-detail-btn">Delete Workout</button></div>
+          <div style="margin-top:32px; display:flex; flex-direction:column; gap:12px;">
+            ${s.strava_id ? '' : `<button class="btn btn-primary btn-full" id="edit-workout-btn">Edit / Resume Workout</button>`}
+            <button class="btn btn-danger btn-full" id="delete-detail-btn">Delete Workout</button>
+          </div>
         </div>
       `;
+
+      const editBtn = container.querySelector('#edit-workout-btn');
+      if (editBtn) {
+        editBtn.onclick = async () => {
+          editBtn.disabled = true;
+          editBtn.textContent = 'Opening...';
+          try {
+            await api.resumeSession(id);
+            location.hash = '#/workout/' + id;
+          } catch (err) {
+            alert('Failed to open workout: ' + err.message);
+            editBtn.disabled = false;
+            editBtn.textContent = 'Edit / Resume Workout';
+          }
+        };
+      }
 
       container.querySelector('#delete-detail-btn').onclick = async () => {
         if (!confirm('Permanently delete this workout history?')) return;

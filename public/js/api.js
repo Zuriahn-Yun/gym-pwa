@@ -287,6 +287,16 @@ export async function finishSession(id) {
   return data;
 }
 
+export async function resumeSession(id) {
+  const { data, error } = await db().from('sessions')
+    .update({ finished_at: null })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function deleteSession(id) {
   const { error } = await db().from('sessions').delete().eq('id', id);
   if (error) throw new Error(error.message);
