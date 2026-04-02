@@ -36,6 +36,11 @@ async function navigate() {
   if (isNavigating) return;
   isNavigating = true;
   try {
+    // Basic initialization check
+    if (!insforge || !insforge.database) {
+      throw new Error('Gym system is initializing. Please wait a moment.');
+    }
+
     // Try to get user from memory/storage first
     currentUser = insforge.auth.tokenManager.getUser();
     

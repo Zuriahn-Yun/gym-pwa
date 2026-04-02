@@ -9,7 +9,8 @@ export async function render(container, params) {
 
   // If sessionId is provided, render the detail view instead of the calendar
   if (sessionId) {
-    return renderSessionDetail(container, sessionId);
+    await renderSessionDetail(container, sessionId);
+    return;
   }
 
   function getDaysInMonth(year, month) {
@@ -244,6 +245,9 @@ export async function render(container, params) {
   async function renderSessionDetail(container, id) {
     container.innerHTML = '<div class="loading">Loading details...</div>';
     try {
+      if (!api.insforge || !api.insforge.database) {
+        throw new Error('Database client not initialized');
+      }
       const s = await api.getSession(id);
       if (!s) throw new Error('Session not found');
 
