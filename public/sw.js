@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE = 'gym-v28';
+const CACHE = 'gym-v29';
 const STATIC = [
   '/', '/index.html', '/style.css', '/manifest.json',
   '/icons/icon-192.png', '/icons/icon-512.png',

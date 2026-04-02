@@ -1,8 +1,14 @@
 import { insforge } from './insforge.js';
-const db = insforge.database;
+
+// Access database getter dynamically to ensure it's always the latest initialized instance
+const getDb = () => {
+  if (!insforge.database) throw new Error('Database client not initialized');
+  return insforge.database;
+};
 
 // ===== PROFILE =====
 export async function upsertProfile(user) {
+  const db = getDb();
   const { data: existing } = await db.from('profiles').select('id').eq('id', user.id).single();
   
   if (existing) {
@@ -25,12 +31,14 @@ export async function upsertProfile(user) {
 }
 
 export async function getProfile(userId) {
+  const db = getDb();
   const { data, error } = await db.from('profiles').select().eq('id', userId).single();
   if (error) return null;
   return data;
 }
 
 export async function disconnectStrava(userId) {
+  const db = getDb();
   const { error } = await db.from('profiles').update({
     strava_access_token: null,
     strava_refresh_token: null,
@@ -42,12 +50,14 @@ export async function disconnectStrava(userId) {
 
 // ===== SCHEDULE =====
 export async function getSchedule() {
+  const db = getDb();
   const { data, error } = await db.from('schedule').select('*, templates(id, name)').order('day_of_week');
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function setScheduleDay(day, template_id) {
+  const db = getDb();
   const { data, error } = await db.from('schedule')
     .update({ template_id: template_id || null })
     .eq('day_of_week', day)
@@ -59,35 +69,41 @@ export async function setScheduleDay(day, template_id) {
 
 // ===== TEMPLATES =====
 export async function getTemplates() {
+  const db = getDb();
   const { data, error } = await db.from('templates').select().order('id');
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function getTemplate(id) {
+  const db = getDb();
   const { data, error } = await db.from('templates').select().eq('id', id).single();
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function createTemplate(name) {
+  const db = getDb();
   const { data, error } = await db.from('templates').insert([{ name }]).select().single();
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function updateTemplate(id, name) {
+  const db = getDb();
   const { data, error } = await db.from('templates').update({ name }).eq('id', id).select().single();
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function deleteTemplate(id) {
+  const db = getDb();
   const { error } = await db.from('templates').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function getTemplateExercises(id) {
+  const db = getDb();
   const { data, error } = await db.from('template_exercises')
     .select('*, exercises(id, name, muscle_group, notes)')
     .eq('template_id', id)
@@ -97,6 +113,7 @@ export async function getTemplateExercises(id) {
 }
 
 export async function addExerciseToTemplate(templateId, exercise_id, opts = {}) {
+  const db = getDb();
   const { data, error } = await db.from('template_exercises')
     .insert([{
       template_id: templateId,
@@ -113,6 +130,7 @@ export async function addExerciseToTemplate(templateId, exercise_id, opts = {}) 
 }
 
 export async function removeExerciseFromTemplate(templateId, exerciseId) {
+  const db = getDb();
   const { error } = await db.from('template_exercises')
     .delete()
     .eq('template_id', templateId)
@@ -121,6 +139,7 @@ export async function removeExerciseFromTemplate(templateId, exerciseId) {
 }
 
 export async function updateTemplateExercise(templateId, exerciseId, fields) {
+  const db = getDb();
   const { data, error } = await db.from('template_exercises')
     .update(fields)
     .eq('template_id', templateId)
@@ -132,6 +151,7 @@ export async function updateTemplateExercise(templateId, exerciseId, fields) {
 }
 
 export async function reorderTemplateExercises(templateId, items) {
+  const db = getDb();
   // items: [{ exercise_id, position }]
   await Promise.all(items.map(({ exercise_id, position }) =>
     db.from('template_exercises')
@@ -143,36 +163,42 @@ export async function reorderTemplateExercises(templateId, items) {
 
 // ===== EXERCISES =====
 export async function getExercises() {
+  const db = getDb();
   const { data, error } = await db.from('exercises').select().order('name');
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function getExercise(id) {
+  const db = getDb();
   const { data, error } = await db.from('exercises').select().eq('id', id).single();
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function createExercise(name, muscle_group, notes, exercise_type = 'strength') {
+  const db = getDb();
   const { data, error } = await db.from('exercises').insert([{ name, muscle_group, notes, exercise_type }]).select().single();
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function updateExercise(id, fields) {
+  const db = getDb();
   const { data, error } = await db.from('exercises').update(fields).eq('id', id).select().single();
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function deleteExercise(id) {
+  const db = getDb();
   const { error } = await db.from('exercises').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function getExerciseStats(id) {
-  const { data, error } = await insforge.database.rpc('get_exercise_stats', { p_exercise_id: id });
+  const db = getDb();
+  const { data, error } = await db.rpc('get_exercise_stats', { p_exercise_id: id });
   if (error) throw new Error(error.message);
   const row = data && data[0];
   if (!row) return { lastWeight: null, lastReps: null, lastDate: null, pr: null };
@@ -186,6 +212,7 @@ export async function getExerciseStats(id) {
 
 // ===== SESSIONS =====
 export async function getSessions(limit = 20, offset = 0) {
+  const db = getDb();
   const { data, error } = await db.from('sessions')
     .select('*, templates(name)')
     .order('started_at', { ascending: false })
@@ -195,6 +222,7 @@ export async function getSessions(limit = 20, offset = 0) {
 }
 
 export async function getSessionsByDateRange(startDate, endDate) {
+  const db = getDb();
   const { data, error } = await db.from('sessions')
     .select('*, templates(name)')
     .gte('started_at', startDate)
@@ -205,6 +233,7 @@ export async function getSessionsByDateRange(startDate, endDate) {
 }
 
 export async function getSession(id) {
+  const db = getDb();
   const { data, error } = await db.from('sessions')
     .select('*, templates(name), session_exercises(*, exercises(id, name, muscle_group), sets(*))')
     .eq('id', id)
@@ -221,6 +250,7 @@ export async function getSession(id) {
 }
 
 export async function createSession(template_id, user_id, date = null) {
+  const db = getDb();
   if (!user_id) throw new Error('User ID is required to create a session');
   const row = { 
     template_id: template_id || null, 
@@ -270,6 +300,7 @@ export async function createSession(template_id, user_id, date = null) {
 }
 
 export async function finishSession(id) {
+  const db = getDb();
   const { data, error } = await db.from('sessions')
     .update({ finished_at: new Date().toISOString() })
     .eq('id', id)
@@ -280,16 +311,30 @@ export async function finishSession(id) {
 }
 
 export async function deleteSession(id) {
+  const db = getDb();
   const { error } = await db.from('sessions').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function removeExerciseFromSession(sessionExerciseId) {
+  const db = getDb();
   const { error } = await db.from('session_exercises').delete().eq('id', sessionExerciseId);
   if (error) throw new Error(error.message);
 }
 
+export async function finishWorkout(id) {
+  const db = getDb();
+  const { data, error } = await db.from('sessions')
+    .update({ finished_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function addExerciseToSession(sessionId, exercise_id, position = 0) {
+  const db = getDb();
   const { data: se, error } = await db.from('session_exercises')
     .insert([{ session_id: sessionId, exercise_id, position }])
     .select('*, exercises(id, name, muscle_group)')
@@ -300,6 +345,7 @@ export async function addExerciseToSession(sessionId, exercise_id, position = 0)
 
 // ===== SETS =====
 export async function addSet(sessionExerciseId, set_number, weight = 0, reps = 0, distance = null, duration = null) {
+  const db = getDb();
   const row = { session_exercise_id: sessionExerciseId, set_number, weight, reps, completed: false };
   if (distance != null) row.distance = distance;
   if (duration != null) row.duration = duration;
@@ -309,12 +355,15 @@ export async function addSet(sessionExerciseId, set_number, weight = 0, reps = 0
 }
 
 export async function updateSet(id, fields) {
+  const db = getDb();
   const { data, error } = await db.from('sets').update(fields).eq('id', id).select().single();
   if (error) throw new Error(error.message);
   return data;
 }
 
 export async function deleteSet(id) {
+  const db = getDb();
   const { error } = await db.from('sets').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+

@@ -40,23 +40,25 @@ export async function render(container, params) {
     return new Date(year, month, 1).getDay();
   }
 
-  async function loadMonthData() {
+  async function loadMonthData(retryCount = 0) {
     const calendarContainer = container.querySelector('#calendar-view');
     if (!calendarContainer) return;
 
-    calendarContainer.innerHTML = '<div class="loading">Loading calendar...</div>';
+    if (retryCount === 0) calendarContainer.innerHTML = '<div class="loading">Loading calendar...</div>';
     
     const startOfMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1).toISOString();
     const endOfMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth() + 1, 0, 23, 59, 59).toISOString();
     
     try {
-      const debugEl = container.querySelector('#history-debug');
       if (!api.insforge || !api.insforge.database) {
+        if (retryCount < 5) {
+          console.warn(`Database not ready, retrying... (${retryCount + 1}/5)`);
+          setTimeout(() => loadMonthData(retryCount + 1), 1000);
+          return;
+        }
         throw new Error('Database client not initialized');
       }
 
-      console.error(`Attempting fetch for userId: ${userId}`);
-      // Step 1: Fetch core sessions explicitly for this user
       const { data, error } = await api.insforge.database.from('sessions')
         .select('*, templates(name)')
         .eq('user_id', userId)
@@ -64,13 +66,9 @@ export async function render(container, params) {
         .lte('started_at', endOfMonth)
         .order('started_at', { ascending: false });
       
-      if (error) {
-        console.error('SUPABASE ERROR:', error);
-        throw error;
-      }
+      if (error) throw error;
       state.sessions = data || [];
 
-      // Step 2: Lazy load summaries if any Strava activities exist
       const stravaIds = state.sessions.filter(s => s.strava_id).map(s => s.id);
       if (stravaIds.length > 0) {
         const { data: summaries, error: sumErr } = await api.insforge.database.from('session_exercises')
@@ -87,6 +85,7 @@ export async function render(container, params) {
       renderCalendar();
       renderDayDetail();
       
+      const debugEl = container.querySelector('#history-debug');
       if (debugEl) {
         debugEl.textContent = `User: ${userId} | Month: ${state.currentDate.getMonth() + 1}/${state.currentDate.getFullYear()} | Sessions: ${state.sessions.length}`;
       }
