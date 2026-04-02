@@ -42,7 +42,7 @@ async function navigate() {
     }
 
     // Try to get user from memory/storage first
-    currentUser = insforge.auth.tokenManager.getUser();
+    currentUser = window.__MOCK_USER || insforge.auth.tokenManager.getUser();
     
     let authError = null;
     // Only call getCurrentUser if we don't have a user or if we have an OAuth code
@@ -78,7 +78,9 @@ async function navigate() {
     }
 
     // Persist profile info on first load
-    await upsertProfile(currentUser).catch(console.warn);
+    await upsertProfile(currentUser).catch(err => {
+      console.warn('Profile sync failed:', err.message);
+    });
 
     navEl.style.display = 'flex';
 
